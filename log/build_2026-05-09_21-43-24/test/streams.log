@@ -1,0 +1,137 @@
+[0.008s] Invoking command in '/home/js/rp-exp/build/test': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/js/turtlebot3_ws/install/turtlebot3_teleop:/home/js/turtlebot3_ws/install/turtlebot3_example:/opt/ros/humble /usr/bin/cmake /home/js/rp-exp/test -DCMAKE_INSTALL_PREFIX=/home/js/rp-exp/install/test
+[0.127s] -- The C compiler identification is GNU 11.4.0
+[0.230s] -- The CXX compiler identification is GNU 11.4.0
+[0.237s] -- Detecting C compiler ABI info
+[0.329s] -- Detecting C compiler ABI info - done
+[0.334s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.334s] -- Detecting C compile features
+[0.335s] -- Detecting C compile features - done
+[0.339s] -- Detecting CXX compiler ABI info
+[0.427s] -- Detecting CXX compiler ABI info - done
+[0.431s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.432s] -- Detecting CXX compile features
+[0.432s] -- Detecting CXX compile features - done
+[0.437s] -- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.567s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[0.655s] -- Found rclcpp: 16.0.17 (/opt/ros/humble/share/rclcpp/cmake)
+[0.707s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[0.711s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[0.719s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[0.730s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.745s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.788s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[0.791s] -- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[0.944s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[0.966s] -- Found FastRTPS: /opt/ros/humble/include  
+[0.992s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[1.000s] -- Looking for pthread.h
+[1.057s] -- Looking for pthread.h - found
+[1.057s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[1.113s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[1.113s] -- Found Threads: TRUE  
+[1.160s] -- Found geometry_msgs: 4.9.0 (/opt/ros/humble/share/geometry_msgs/cmake)
+[1.174s] -- Found sensor_msgs: 4.9.0 (/opt/ros/humble/share/sensor_msgs/cmake)
+[1.241s] -- Configuring done
+[1.268s] -- Generating done
+[1.281s] -- Build files have been written to: /home/js/rp-exp/build/test
+[1.288s] Invoked command in '/home/js/rp-exp/build/test' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/js/turtlebot3_ws/install/turtlebot3_teleop:/home/js/turtlebot3_ws/install/turtlebot3_example:/opt/ros/humble /usr/bin/cmake /home/js/rp-exp/test -DCMAKE_INSTALL_PREFIX=/home/js/rp-exp/install/test
+[1.288s] Invoking command in '/home/js/rp-exp/build/test': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/js/turtlebot3_ws/install/turtlebot3_teleop:/home/js/turtlebot3_ws/install/turtlebot3_example:/opt/ros/humble /usr/bin/cmake --build /home/js/rp-exp/build/test -- -j16 -l16
+[1.332s] [  9%] Building CXX object CMakeFiles/s3a_sub.dir/src/s3a_sub.cpp.o
+[1.332s] [  9%] Building CXX object CMakeFiles/s1_sub.dir/src/s1_sub.cpp.o
+[1.333s] [  9%] Building CXX object CMakeFiles/s3a_pub.dir/src/s3a_pub.cpp.o
+[1.333s] [ 18%] Building CXX object CMakeFiles/s3_points_pub.dir/src/s3_points_pub.cpp.o
+[1.333s] [ 18%] Building CXX object CMakeFiles/s2_pub.dir/src/s2_pub.cpp.o
+[1.334s] [ 18%] Building CXX object CMakeFiles/s1_pub.dir/src/s1_pub.cpp.o
+[1.336s] [ 21%] Building CXX object CMakeFiles/s5a_sub.dir/src/s5a_sub.cpp.o
+[1.337s] [ 31%] Building CXX object CMakeFiles/s4a_pub.dir/src/s4a_pub.cpp.o
+[1.337s] [ 31%] Building CXX object CMakeFiles/s3_points_sub.dir/src/s3_points_sub.cpp.o
+[1.337s] [ 37%] Building CXX object CMakeFiles/s5b_pub.dir/src/s5b_pub.cpp.o
+[1.337s] [ 37%] Building CXX object CMakeFiles/s4_image_sub.dir/src/s4_image_sub.cpp.o
+[1.337s] [ 37%] Building CXX object CMakeFiles/s2_sub.dir/src/s2_sub.cpp.o
+[1.337s] [ 40%] Building CXX object CMakeFiles/s5b_sub.dir/src/s5b_sub.cpp.o
+[1.337s] [ 43%] Building CXX object CMakeFiles/s4_image_pub.dir/src/s4_image_pub.cpp.o
+[1.341s] [ 50%] Building CXX object CMakeFiles/s4a_sub.dir/src/s4a_sub.cpp.o
+[1.341s] [ 50%] Building CXX object CMakeFiles/s5a_pub.dir/src/s5a_pub.cpp.o
+[6.740s] [ 53%] Linking CXX executable s3a_pub
+[6.771s] [ 56%] Linking CXX executable s4_image_pub
+[6.953s] [ 56%] Built target s3a_pub
+[6.964s] [ 56%] Built target s4_image_pub
+[6.996s] [ 59%] Linking CXX executable s1_pub
+[7.137s] [ 59%] Built target s1_pub
+[7.141s] [ 62%] Linking CXX executable s2_pub
+[7.239s] [ 62%] Built target s2_pub
+[7.362s] [ 65%] Linking CXX executable s4a_pub
+[7.459s] [ 65%] Built target s4a_pub
+[7.666s] [ 68%] Linking CXX executable s3_points_pub
+[7.858s] [ 68%] Built target s3_points_pub
+[10.176s] [ 71%] Linking CXX executable s5a_pub
+[10.378s] [ 71%] Built target s5a_pub
+[10.461s] [ 75%] Linking CXX executable s1_sub
+[10.490s] [ 78%] Linking CXX executable s3a_sub
+[10.577s] [ 78%] Built target s1_sub
+[10.581s] [ 81%] Linking CXX executable s4_image_sub
+[10.603s] [ 81%] Built target s3a_sub
+[10.689s] [ 81%] Built target s4_image_sub
+[10.788s] [ 84%] Linking CXX executable s4a_sub
+[10.840s] [ 87%] Linking CXX executable s5b_pub
+[10.904s] [ 87%] Built target s4a_sub
+[10.942s] [ 87%] Built target s5b_pub
+[11.007s] [ 90%] Linking CXX executable s2_sub
+[11.113s] [ 90%] Built target s2_sub
+[11.625s] [ 93%] Linking CXX executable s3_points_sub
+[11.738s] [ 93%] Built target s3_points_sub
+[16.356s] [ 96%] Linking CXX executable s5a_sub
+[16.498s] [ 96%] Built target s5a_sub
+[19.492s] [100%] Linking CXX executable s5b_sub
+[19.678s] [100%] Built target s5b_sub
+[19.687s] Invoked command in '/home/js/rp-exp/build/test' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/js/turtlebot3_ws/install/turtlebot3_teleop:/home/js/turtlebot3_ws/install/turtlebot3_example:/opt/ros/humble /usr/bin/cmake --build /home/js/rp-exp/build/test -- -j16 -l16
+[19.694s] Invoking command in '/home/js/rp-exp/build/test': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/js/turtlebot3_ws/install/turtlebot3_teleop:/home/js/turtlebot3_ws/install/turtlebot3_example:/opt/ros/humble /usr/bin/cmake --install /home/js/rp-exp/build/test
+[19.705s] -- Install configuration: ""
+[19.705s] -- Installing: /home/js/rp-exp/install/test/lib/test/s1_pub
+[19.706s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s1_pub" to ""
+[19.706s] -- Installing: /home/js/rp-exp/install/test/lib/test/s1_sub
+[19.706s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s1_sub" to ""
+[19.707s] -- Installing: /home/js/rp-exp/install/test/lib/test/s2_pub
+[19.707s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s2_pub" to ""
+[19.707s] -- Installing: /home/js/rp-exp/install/test/lib/test/s2_sub
+[19.708s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s2_sub" to ""
+[19.708s] -- Installing: /home/js/rp-exp/install/test/lib/test/s3a_pub
+[19.708s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3a_pub" to ""
+[19.709s] -- Installing: /home/js/rp-exp/install/test/lib/test/s3a_sub
+[19.709s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3a_sub" to ""
+[19.709s] -- Installing: /home/js/rp-exp/install/test/lib/test/s3_points_pub
+[19.710s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3_points_pub" to ""
+[19.710s] -- Installing: /home/js/rp-exp/install/test/lib/test/s3_points_sub
+[19.710s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3_points_sub" to ""
+[19.710s] -- Installing: /home/js/rp-exp/install/test/lib/test/s4a_pub
+[19.710s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4a_pub" to ""
+[19.711s] -- Installing: /home/js/rp-exp/install/test/lib/test/s4a_sub
+[19.711s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4a_sub" to ""
+[19.711s] -- Installing: /home/js/rp-exp/install/test/lib/test/s4_image_pub
+[19.711s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4_image_pub" to ""
+[19.711s] -- Installing: /home/js/rp-exp/install/test/lib/test/s4_image_sub
+[19.712s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4_image_sub" to ""
+[19.712s] -- Installing: /home/js/rp-exp/install/test/lib/test/s5a_pub
+[19.712s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5a_pub" to ""
+[19.712s] -- Installing: /home/js/rp-exp/install/test/lib/test/s5a_sub
+[19.713s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5a_sub" to ""
+[19.713s] -- Installing: /home/js/rp-exp/install/test/lib/test/s5b_pub
+[19.713s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5b_pub" to ""
+[19.713s] -- Installing: /home/js/rp-exp/install/test/lib/test/s5b_sub
+[19.714s] -- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5b_sub" to ""
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/ament_index/resource_index/package_run_dependencies/test
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/ament_index/resource_index/parent_prefix_path/test
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/environment/ament_prefix_path.sh
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/environment/ament_prefix_path.dsv
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/environment/path.sh
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/environment/path.dsv
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/local_setup.bash
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/local_setup.sh
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/local_setup.zsh
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/local_setup.dsv
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/package.dsv
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/ament_index/resource_index/packages/test
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/cmake/testConfig.cmake
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/cmake/testConfig-version.cmake
+[19.715s] -- Installing: /home/js/rp-exp/install/test/share/test/package.xml
+[19.716s] Invoked command in '/home/js/rp-exp/build/test' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/js/turtlebot3_ws/install/turtlebot3_teleop:/home/js/turtlebot3_ws/install/turtlebot3_example:/opt/ros/humble /usr/bin/cmake --install /home/js/rp-exp/build/test

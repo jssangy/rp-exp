@@ -1,0 +1,131 @@
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+-- Found rclcpp: 16.0.17 (/opt/ros/humble/share/rclcpp/cmake)
+-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+-- Found rmw_fastrtps_cpp: 6.2.9 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+-- Found FastRTPS: /opt/ros/humble/include  
+-- Using RMW implementation 'rmw_fastrtps_cpp' as default
+-- Looking for pthread.h
+-- Looking for pthread.h - found
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE  
+-- Found geometry_msgs: 4.9.0 (/opt/ros/humble/share/geometry_msgs/cmake)
+-- Found sensor_msgs: 4.9.0 (/opt/ros/humble/share/sensor_msgs/cmake)
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/js/rp-exp/build/test
+[  9%] Building CXX object CMakeFiles/s3a_sub.dir/src/s3a_sub.cpp.o
+[  9%] Building CXX object CMakeFiles/s1_sub.dir/src/s1_sub.cpp.o
+[  9%] Building CXX object CMakeFiles/s3a_pub.dir/src/s3a_pub.cpp.o
+[ 18%] Building CXX object CMakeFiles/s3_points_pub.dir/src/s3_points_pub.cpp.o
+[ 18%] Building CXX object CMakeFiles/s2_pub.dir/src/s2_pub.cpp.o
+[ 18%] Building CXX object CMakeFiles/s1_pub.dir/src/s1_pub.cpp.o
+[ 21%] Building CXX object CMakeFiles/s5a_sub.dir/src/s5a_sub.cpp.o
+[ 31%] Building CXX object CMakeFiles/s4a_pub.dir/src/s4a_pub.cpp.o
+[ 31%] Building CXX object CMakeFiles/s3_points_sub.dir/src/s3_points_sub.cpp.o
+[ 37%] Building CXX object CMakeFiles/s5b_pub.dir/src/s5b_pub.cpp.o
+[ 37%] Building CXX object CMakeFiles/s4_image_sub.dir/src/s4_image_sub.cpp.o
+[ 37%] Building CXX object CMakeFiles/s2_sub.dir/src/s2_sub.cpp.o
+[ 40%] Building CXX object CMakeFiles/s5b_sub.dir/src/s5b_sub.cpp.o
+[ 43%] Building CXX object CMakeFiles/s4_image_pub.dir/src/s4_image_pub.cpp.o
+[ 50%] Building CXX object CMakeFiles/s4a_sub.dir/src/s4a_sub.cpp.o
+[ 50%] Building CXX object CMakeFiles/s5a_pub.dir/src/s5a_pub.cpp.o
+[ 53%] Linking CXX executable s3a_pub
+[ 56%] Linking CXX executable s4_image_pub
+[ 56%] Built target s3a_pub
+[ 56%] Built target s4_image_pub
+[ 59%] Linking CXX executable s1_pub
+[ 59%] Built target s1_pub
+[ 62%] Linking CXX executable s2_pub
+[ 62%] Built target s2_pub
+[ 65%] Linking CXX executable s4a_pub
+[ 65%] Built target s4a_pub
+[ 68%] Linking CXX executable s3_points_pub
+[ 68%] Built target s3_points_pub
+[ 71%] Linking CXX executable s5a_pub
+[ 71%] Built target s5a_pub
+[ 75%] Linking CXX executable s1_sub
+[ 78%] Linking CXX executable s3a_sub
+[ 78%] Built target s1_sub
+[ 81%] Linking CXX executable s4_image_sub
+[ 81%] Built target s3a_sub
+[ 81%] Built target s4_image_sub
+[ 84%] Linking CXX executable s4a_sub
+[ 87%] Linking CXX executable s5b_pub
+[ 87%] Built target s4a_sub
+[ 87%] Built target s5b_pub
+[ 90%] Linking CXX executable s2_sub
+[ 90%] Built target s2_sub
+[ 93%] Linking CXX executable s3_points_sub
+[ 93%] Built target s3_points_sub
+[ 96%] Linking CXX executable s5a_sub
+[ 96%] Built target s5a_sub
+[100%] Linking CXX executable s5b_sub
+[100%] Built target s5b_sub
+-- Install configuration: ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s1_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s1_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s1_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s1_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s2_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s2_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s2_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s2_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s3a_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3a_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s3a_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3a_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s3_points_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3_points_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s3_points_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s3_points_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s4a_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4a_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s4a_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4a_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s4_image_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4_image_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s4_image_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s4_image_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s5a_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5a_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s5a_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5a_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s5b_pub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5b_pub" to ""
+-- Installing: /home/js/rp-exp/install/test/lib/test/s5b_sub
+-- Set runtime path of "/home/js/rp-exp/install/test/lib/test/s5b_sub" to ""
+-- Installing: /home/js/rp-exp/install/test/share/ament_index/resource_index/package_run_dependencies/test
+-- Installing: /home/js/rp-exp/install/test/share/ament_index/resource_index/parent_prefix_path/test
+-- Installing: /home/js/rp-exp/install/test/share/test/environment/ament_prefix_path.sh
+-- Installing: /home/js/rp-exp/install/test/share/test/environment/ament_prefix_path.dsv
+-- Installing: /home/js/rp-exp/install/test/share/test/environment/path.sh
+-- Installing: /home/js/rp-exp/install/test/share/test/environment/path.dsv
+-- Installing: /home/js/rp-exp/install/test/share/test/local_setup.bash
+-- Installing: /home/js/rp-exp/install/test/share/test/local_setup.sh
+-- Installing: /home/js/rp-exp/install/test/share/test/local_setup.zsh
+-- Installing: /home/js/rp-exp/install/test/share/test/local_setup.dsv
+-- Installing: /home/js/rp-exp/install/test/share/test/package.dsv
+-- Installing: /home/js/rp-exp/install/test/share/ament_index/resource_index/packages/test
+-- Installing: /home/js/rp-exp/install/test/share/test/cmake/testConfig.cmake
+-- Installing: /home/js/rp-exp/install/test/share/test/cmake/testConfig-version.cmake
+-- Installing: /home/js/rp-exp/install/test/share/test/package.xml
