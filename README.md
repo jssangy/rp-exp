@@ -18,12 +18,6 @@ sudo cpupower frequency-set -g performance
 
 # ros2 daemon 비활성화
 ros2 daemon stop
-
-# rmw 명시
-export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-
-# 실험별 도메인 격리 (값은 실험마다 다르게)
-export ROS_DOMAIN_ID=10
 ```
 
 ---
