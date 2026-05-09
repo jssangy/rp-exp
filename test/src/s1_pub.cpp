@@ -51,10 +51,11 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
 
   double hz = 20.0;
-  if (argc > 1) {
-    hz = std::stod(argv[1]);
+  if (args.size() > 1) {
+    hz = std::stod(args[1]);
   }
   if (hz > 50.0) {
     RCLCPP_WARN(rclcpp::get_logger("s1_pub"), "Hz %.1f > 50 (S1 상한), 50으로 제한", hz);

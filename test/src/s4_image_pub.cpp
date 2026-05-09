@@ -75,17 +75,18 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
 
   // 기본값: S4-b (depth, 16UC1, 640x480)
   uint32_t    width    = 640;
   uint32_t    height   = 480;
   std::string encoding = "16UC1";
 
-  if (argc == 4) {
-    width    = static_cast<uint32_t>(std::stoul(argv[1]));
-    height   = static_cast<uint32_t>(std::stoul(argv[2]));
-    encoding = argv[3];
-  } else if (argc != 1) {
+  if (args.size() == 4) {
+    width    = static_cast<uint32_t>(std::stoul(args[1]));
+    height   = static_cast<uint32_t>(std::stoul(args[2]));
+    encoding = args[3];
+  } else if (args.size() != 1) {
     RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),
       "usage: s4_image_pub [width height encoding]");
     RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),

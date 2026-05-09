@@ -88,10 +88,11 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
 
   uint32_t num_points = DEFAULT_NUM_POINTS;
-  if (argc > 1) {
-    num_points = static_cast<uint32_t>(std::stoul(argv[1]));
+  if (args.size() > 1) {
+    num_points = static_cast<uint32_t>(std::stoul(args[1]));
   }
 
   auto node = std::make_shared<S3PointsPublisher>(num_points);

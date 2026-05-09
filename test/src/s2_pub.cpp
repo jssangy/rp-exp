@@ -74,10 +74,11 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
 
   double hz = 200.0;
-  if (argc > 1) {
-    hz = std::stod(argv[1]);
+  if (args.size() > 1) {
+    hz = std::stod(args[1]);
   }
 
   auto node = std::make_shared<S2Publisher>(hz);
