@@ -221,11 +221,7 @@ ros2 run test s4_image_sub /image_raw
 | 대표 플랫폼 | TurtleBot4, Clearpath Jackal |
 
 ```bash
-# publisher
-ros2 run test s5a_pub
-
-# subscriber
-ros2 run test s5a_sub
+ros2 launch test s5a.launch.py
 ```
 
 ---
@@ -240,11 +236,7 @@ ros2 run test s5a_sub
 | 대표 플랫폼 | Autoware, Apollo |
 
 ```bash
-# publisher — S3-d 포함으로 Jetson 또는 노트북 담당 권장
-ros2 run test s5b_pub
-
-# subscriber
-ros2 run test s5b_sub
+ros2 launch test s5b.launch.py
 ```
 
 ---
@@ -259,5 +251,5 @@ ros2 run test s5b_sub
 | `s3_points_pub` / `s3_points_sub` | S3-b/c/d pub/sub | `/points` |
 | `s4a_pub` / `s4a_sub` | S4-a pub/sub | `/image_raw/compressed` |
 | `s4_image_pub` / `s4_image_sub` | S4-b/c/d pub/sub | `/depth/image_raw`, `/image_raw` |
-| `s5a_pub` / `s5a_sub` | S5-a 복합 pub/sub | 4개 토픽 |
-| `s5b_pub` / `s5b_sub` | S5-b 복합 pub/sub | 6개 토픽 |
+| `s5a.launch.py` | S5-a 복합 (4개 노드) | /cmd_vel /imu /scan /image_raw/compressed |
+| `s5b.launch.py` | S5-b 복합 (6개 노드) | /cmd_vel /imu /points /camera/front /camera/side /depth/image_raw |
