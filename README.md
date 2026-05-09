@@ -221,7 +221,11 @@ ros2 run test s4_image_sub /image_raw
 | 대표 플랫폼 | TurtleBot4, Clearpath Jackal |
 
 ```bash
-ros2 launch test s5a.launch.py
+# 송신 머신
+ros2 launch test s5a_pub.launch.py
+
+# 수신 머신
+ros2 launch test s5a_sub.launch.py
 ```
 
 ---
@@ -236,7 +240,11 @@ ros2 launch test s5a.launch.py
 | 대표 플랫폼 | Autoware, Apollo |
 
 ```bash
-ros2 launch test s5b.launch.py
+# 송신 머신 (S3-d 포함으로 Jetson 또는 노트북 권장)
+ros2 launch test s5b_pub.launch.py
+
+# 수신 머신
+ros2 launch test s5b_sub.launch.py
 ```
 
 ---
@@ -251,5 +259,5 @@ ros2 launch test s5b.launch.py
 | `s3_points_pub` / `s3_points_sub` | S3-b/c/d pub/sub | `/points` |
 | `s4a_pub` / `s4a_sub` | S4-a pub/sub | `/image_raw/compressed` |
 | `s4_image_pub` / `s4_image_sub` | S4-b/c/d pub/sub | `/depth/image_raw`, `/image_raw` |
-| `s5a.launch.py` | S5-a 복합 (4개 노드) | /cmd_vel /imu /scan /image_raw/compressed |
-| `s5b.launch.py` | S5-b 복합 (6개 노드) | /cmd_vel /imu /points /camera/front /camera/side /depth/image_raw |
+| `s5a_pub.launch.py` / `s5a_sub.launch.py` | S5-a 복합 (4개 노드) | /cmd_vel /imu /scan /image_raw/compressed |
+| `s5b_pub.launch.py` / `s5b_sub.launch.py` | S5-b 복합 (6개 노드) | /cmd_vel /imu /points /camera/front /camera/side /depth/image_raw |
