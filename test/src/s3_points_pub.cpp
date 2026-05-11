@@ -12,7 +12,7 @@ static constexpr uint32_t POINT_STEP = 22;
 static constexpr double   HZ         = 10.0;
 
 // 시나리오별 기본 포인트 수
-// S3-b: 30000, S3-c: 60000, S3-d: 130000
+// S3-b: 30000, S3-c: 130000
 static constexpr uint32_t DEFAULT_NUM_POINTS = 30000;
 
 class S3PointsPublisher : public rclcpp::Node

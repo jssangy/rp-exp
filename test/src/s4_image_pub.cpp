@@ -26,7 +26,6 @@ public:
     rclcpp::QoS qos(1);
     qos.best_effort();
 
-    // S4-b: /depth/image_raw, S4-c/d: /image_raw
     std::string topic = (encoding == "16UC1") ? "/depth/image_raw" : "/image_raw";
     pub_ = create_publisher<sensor_msgs::msg::Image>(topic, qos);
 
@@ -91,10 +90,6 @@ int main(int argc, char ** argv)
       "usage: s4_image_pub [width height encoding]");
     RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),
       "  S4-b: 640  480  16UC1   (~614 KB)");
-    RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),
-      "  S4-c: 1280 720  rgb8    (~2.76 MB)");
-    RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),
-      "  S4-d: 1920 1080 rgb8    (~6.22 MB)");
     return 1;
   }
 

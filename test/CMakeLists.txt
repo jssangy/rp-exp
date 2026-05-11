@@ -33,7 +33,7 @@ ament_target_dependencies(s3a_pub ${DEPS})
 add_executable(s3a_sub src/s3a_sub.cpp)
 ament_target_dependencies(s3a_sub ${DEPS})
 
-# S3-b/c/d — /points (sensor_msgs/PointCloud2, num_points 인자로 구분)
+# S3-b/c — /points (sensor_msgs/PointCloud2, num_points 인자로 구분)
 add_executable(s3_points_pub src/s3_points_pub.cpp)
 ament_target_dependencies(s3_points_pub ${DEPS})
 
@@ -47,7 +47,7 @@ ament_target_dependencies(s4a_pub ${DEPS})
 add_executable(s4a_sub src/s4a_sub.cpp)
 ament_target_dependencies(s4a_sub ${DEPS})
 
-# S4-b/c/d — /image_raw or /depth/image_raw (sensor_msgs/Image, 인자로 구분)
+# S4-b — /depth/image_raw (sensor_msgs/Image)
 add_executable(s4_image_pub src/s4_image_pub.cpp)
 ament_target_dependencies(s4_image_pub ${DEPS})
 

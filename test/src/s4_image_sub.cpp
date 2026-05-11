@@ -94,7 +94,6 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
 
-  // 기본값: S4-b (/depth/image_raw), S4-c/d는 /image_raw 지정
   std::string topic = "/depth/image_raw";
   if (argc > 1) {
     topic = argv[1];
