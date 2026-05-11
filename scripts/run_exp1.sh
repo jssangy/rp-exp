@@ -1,13 +1,13 @@
 #!/bin/bash
-# Laptop B — Experiment 1 전체 실행
+# Laptop B — Experiment 1 전체 자동 실행
 #
 # 사용법:
 #   ./scripts/run_exp1.sh
 #   ./scripts/run_exp1.sh --scenarios S3b,S4b,S5b
 #   ./scripts/run_exp1.sh --scenarios S1 --runs 3   # 테스트
 #
-# Laptop A에서는 run_exp1_a.sh 를 동시에 실행한다.
-# 시나리오 전환마다 양쪽 모두 Enter 대기 → 사람이 동기화.
+# Laptop A에서 run_exp1_a.sh 를 동시에 실행한다.
+# 시작 시 Enter 한 번 맞추면 이후 완전 자동 실행.
 #
 # 주의: SSH를 통한 원격 publisher 제어는 eth0 ΔRX 측정을 오염시키므로
 #       별도 관리 NIC(WiFi 등)이 없는 한 사용하지 않는다.
@@ -43,9 +43,7 @@ NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
 export NIC
 
 # 시간 추정
-N_SCENARIOS=${#SCENARIOS[@]}
-SECS_PER_RUN=80
-TOTAL_SECS=$(( N_SCENARIOS * 5 * N_RUNS * SECS_PER_RUN ))
+TOTAL_SECS=$(( ${#SCENARIOS[@]} * 5 * N_RUNS * 80 ))
 TOTAL_H=$(( TOTAL_SECS / 3600 ))
 TOTAL_M=$(( (TOTAL_SECS % 3600) / 60 ))
 
@@ -62,21 +60,18 @@ echo "사전 확인:"
 echo "  1) PTP 동기화 offset < ±1μs"
 echo "  2) Laptop A에서 run_exp1_a.sh 실행 후 대기 중"
 echo ""
-read -rp "준비 완료 후 Enter..."
+read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
 
 START_TIME=$(date +%s)
 FAILED=()
-
 CONDITIONS=(baseline topic_hz rosbag2 rp_hz rp_bag)
 
 for SCENARIO in "${SCENARIOS[@]}"; do
   SCENARIO_START=$(date +%s)
   echo ""
   echo "════════════════════════════════════════════════"
-  echo " 시나리오: ${SCENARIO}  ($(date '+%H:%M:%S'))"
-  echo " Laptop A에 이 시나리오 시작을 알리고 Enter..."
+  echo " [$(date '+%H:%M:%S')] 시나리오: ${SCENARIO}"
   echo "════════════════════════════════════════════════"
-  read -rp ""
 
   for CONDITION in "${CONDITIONS[@]}"; do
     echo ""
@@ -94,16 +89,14 @@ for SCENARIO in "${SCENARIOS[@]}"; do
 
   ELAPSED=$(( $(date +%s) - SCENARIO_START ))
   echo ""
-  echo "  ✓ ${SCENARIO} 완료 — ${ELAPSED}s"
-  echo "  Laptop A에 이 시나리오 완료를 알리세요."
+  echo "  ✓ ${SCENARIO} 완료 — ${ELAPSED}s  ($(date '+%H:%M:%S'))"
 done
 
 # 최종 요약
-END_TIME=$(date +%s)
-TOTAL_ELAPSED=$(( END_TIME - START_TIME ))
+TOTAL_ELAPSED=$(( $(date +%s) - START_TIME ))
 echo ""
 echo "════════════════════════════════════════════════"
-echo " Experiment 1 완료"
+echo " Experiment 1 완료  $(date '+%H:%M:%S')"
 echo " 총 소요 : $(( TOTAL_ELAPSED/3600 ))h $(( (TOTAL_ELAPSED%3600)/60 ))m"
 echo " 결과    : ${REPO_DIR}/results/exp1/"
 if [[ ${#FAILED[@]} -gt 0 ]]; then
