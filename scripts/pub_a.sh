@@ -11,8 +11,10 @@ SCENARIO=${1:?usage: $0 <scenario>}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
+set +u
 source /opt/ros/humble/setup.bash
 source "${REPO_DIR}/install/setup.bash"
+set -u
 
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_DOMAIN_ID=77

@@ -31,10 +31,12 @@ done
 [[ ${#SCENARIOS[@]} -eq 0 ]] && SCENARIOS=("${ALL_SCENARIOS[@]}")
 
 # ROS 환경
+set +u
 if ! command -v ros2 &>/dev/null; then
   source /opt/ros/humble/setup.bash
 fi
 source "${REPO_DIR}/install/setup.bash"
+set -u
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 

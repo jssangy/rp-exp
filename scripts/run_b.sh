@@ -8,12 +8,14 @@
 set -euo pipefail
 
 # ROS 환경이 없으면 자동 소스
+set +u
 if ! command -v ros2 &>/dev/null; then
   source /opt/ros/humble/setup.bash
 fi
 SCRIPT_DIR_TMP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_SETUP="$(dirname "${SCRIPT_DIR_TMP}")/install/setup.bash"
 [[ -f "${INSTALL_SETUP}" ]] && source "${INSTALL_SETUP}"
+set -u
 
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
