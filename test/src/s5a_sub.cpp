@@ -123,6 +123,13 @@ private:
           double latency_ms = std::visit([&](auto && m) {
             return (recv_time - m->header.stamp).nanoseconds() / 1e6;
           }, msg);
+          std::visit([&](auto && m) {
+            using T = std::decay_t<decltype(m)>;
+            if constexpr (std::is_same_v<T, CmdMsg::SharedPtr>)  std::printf("LAT cmd  %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, ImuMsg::SharedPtr>)  std::printf("LAT imu  %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, ScanMsg::SharedPtr>) std::printf("LAT scan %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, CamMsg::SharedPtr>)  std::printf("LAT cam  %.3f\n", latency_ms);
+          }, msg);
 
           ++window_count;
           latency_sum += latency_ms;

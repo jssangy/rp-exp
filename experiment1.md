@@ -75,7 +75,7 @@ S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(10Hz) + /camera/front/c
 |---|---|---|
 | ΔRX (bytes/s) | `/proc/net/dev` 1초 간격 샘플링, 60s 측정 창 평균 | Laptop B NIC |
 | 메시지 드롭률 | subscriber 60s 수신 카운트 vs expected(Hz×60) | Laptop B |
-| E2E latency avg/max | header.stamp 기반, 5s 창 avg/max, PTP 동기화 전제 | Laptop B subscriber 내장 |
+| E2E latency p50/p95/p99 | header.stamp 기반, 측정 창 동안 메시지마다 sub.log에 기록 후 후처리, PTP 동기화 전제 | Laptop B subscriber 내장 |
 
 ---
 
@@ -251,7 +251,22 @@ drop_rate = (expected - received) / expected × 100
 
 ### 8.3 E2E latency
 
-```
-sub.log에서 5s 창 avg/max 파싱
-측정 창 내 전체 평균 및 최댓값 집계
+sub.log에는 측정 창 동안 메시지마다 `LAT <ms>` (S5는 `LAT <topic> <ms>`) 한 줄씩 기록된다.
+
+```bash
+# latency 값 추출
+grep "^LAT" sub.log | awk '{print $NF}' > latency.txt
+
+# Python으로 percentile 계산
+python3 -c "
+import statistics, sys
+vals = [float(l) for l in open('latency.txt')]
+vals.sort()
+n = len(vals)
+print(f'n={n}')
+print(f'p50 = {vals[int(n*0.50)]:.3f} ms')
+print(f'p95 = {vals[int(n*0.95)]:.3f} ms')
+print(f'p99 = {vals[int(n*0.99)]:.3f} ms')
+print(f'max = {vals[-1]:.3f} ms')
+"
 ```

@@ -81,6 +81,7 @@ private:
           last_payload_kb = msg->data.size() / 1024;
           auto recv_time = now();
           double latency_ms = (recv_time - msg->header.stamp).nanoseconds() / 1e6;
+          std::printf("LAT %.3f\n", latency_ms);
           ++recv_count_;
           ++window_count;
           latency_sum += latency_ms;

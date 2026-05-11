@@ -81,6 +81,7 @@ private:
           }
           auto recv_time = now();
           double latency_ms = (recv_time - msg->header.stamp).nanoseconds() / 1e6;
+          std::printf("LAT %.3f\n", latency_ms);
           ++recv_count_;
           ++window_count;
           latency_sum += latency_ms;

@@ -153,6 +153,16 @@ private:
           count(msg, w_cmd, w_imu, w_pts, w_front, w_side, w_depth);
 
           double latency_ms = (now() - stamp_of(msg)).nanoseconds() / 1e6;
+          std::visit([&](auto && m) {
+            using T = std::decay_t<decltype(m)>;
+            if constexpr (std::is_same_v<T, CmdMsg::SharedPtr>)  std::printf("LAT cmd   %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, ImuMsg::SharedPtr>)  std::printf("LAT imu   %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, PtsMsg::SharedPtr>)  std::printf("LAT pts   %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, Front>)              std::printf("LAT front %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, Side>)               std::printf("LAT side  %.3f\n", latency_ms);
+            else if constexpr (std::is_same_v<T, ImgMsg::SharedPtr>)  std::printf("LAT depth %.3f\n", latency_ms);
+          }, msg);
+
           ++window_count;
           latency_sum += latency_ms;
           if (latency_ms > latency_max) latency_max = latency_ms;
