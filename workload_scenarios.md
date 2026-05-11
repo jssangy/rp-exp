@@ -225,10 +225,10 @@ Intel RealSense, Microsoft Azure Kinect 기반 실내 AMR 로컬라이제이션 
 | S2 | /imu | Imu | 200 Hz | ~320 B | ~720 Kbps | ✗ | ✗ | 
 | S3-a | /scan | LaserScan | 40 Hz | ~4.3 KB | ~13.8 Mbps | ✓ | ✗ | 
 | S3-b | /points | PointCloud2 | 10 Hz | ~644 KB | ~51.5 Mbps | ✓ | ✓ | 
-| S3-c | /points | PointCloud2 | 10 Hz | ~2.72 MB | ~217 Mbps | ✓ | ✓ | 
+| S3-c | /points | PointCloud2 | 10 Hz | ~2.72 MB | ~229 Mbps | ✓ | ✓ | 
 | S4-a | /image_raw/compressed | CompressedImage | 30 Hz | ~150 KB | ~36 Mbps | ✓ | ✓ | 
 | S4-b | /depth/image_raw | Image | 30 Hz | ~600 KB | ~147 Mbps | ✓ | ✓ | 
 | S5-a | /cmd_vel + /imu + /scan + /image_raw/compressed | — | 20/200/40/30 Hz | — | ~50 Mbps | ✓ | ✓ | 
-| S5-b | /cmd_vel + /imu + /points + /image_raw/compressed×2 + /depth/image_raw | — | 20/200/10/30/30 Hz | — | ~505 Mbps | ✓ | ✓ |
+| S5-b | /cmd_vel + /imu + /points + /image_raw/compressed×2 + /depth/image_raw | — | 20/200/10/30/30 Hz | — | ~449 Mbps | ✓ | ✓ |
 
 ---
