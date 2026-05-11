@@ -8,13 +8,13 @@
 #include <variant>
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
-using CmdMsg   = geometry_msgs::msg::Twist;
+using CmdMsg   = geometry_msgs::msg::TwistStamped;
 using ImuMsg   = sensor_msgs::msg::Imu;
 using PtsMsg   = sensor_msgs::msg::PointCloud2;
 using CamMsg   = sensor_msgs::msg::CompressedImage;
@@ -78,9 +78,24 @@ private:
     cv_.notify_one();
   }
 
+  static rclcpp::Time stamp_of(const AnyMsg & m)
+  {
+    return std::visit([](auto && v) -> rclcpp::Time {
+      using T = std::decay_t<decltype(v)>;
+      if constexpr (std::is_same_v<T, Front> || std::is_same_v<T, Side>) {
+        return v.msg->header.stamp;
+      } else {
+        return v->header.stamp;
+      }
+    }, m);
+  }
+
   void process_loop()
   {
     auto window_start = std::chrono::steady_clock::now();
+    double latency_sum = 0.0;
+    double latency_max = 0.0;
+    uint64_t window_count = 0;
 
     while (running_) {
       std::unique_lock<std::mutex> lk(mtx_);
@@ -91,21 +106,33 @@ private:
         queue_.pop();
         lk.unlock();
 
+        auto recv_time = now();
         std::visit([this](auto && m) { count(m); }, msg);
 
-        auto now = std::chrono::steady_clock::now();
-        double elapsed = std::chrono::duration<double>(now - window_start).count();
+        double latency_ms = (recv_time - stamp_of(msg)).nanoseconds() / 1e6;
+
+        ++window_count;
+        latency_sum += latency_ms;
+        if (latency_ms > latency_max) latency_max = latency_ms;
+
+        auto now_steady = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
         if (elapsed >= 5.0) {
           RCLCPP_INFO(get_logger(),
-            "recv 5s | cmd %.1f | imu %.1f | pts %.1f | front %.1f | side %.1f | depth %.1f Hz",
+            "recv 5s | cmd %.1f | imu %.1f | pts %.1f | front %.1f | side %.1f | depth %.1f Hz"
+            " | latency avg %.2f ms max %.2f ms",
             recv_cmd_.load()   / elapsed,
             recv_imu_.load()   / elapsed,
             recv_pts_.load()   / elapsed,
             recv_front_.load() / elapsed,
             recv_side_.load()  / elapsed,
-            recv_depth_.load() / elapsed);
-          window_start = now;
+            recv_depth_.load() / elapsed,
+            latency_sum / window_count, latency_max);
+          window_start = now_steady;
           recv_cmd_ = recv_imu_ = recv_pts_ = recv_front_ = recv_side_ = recv_depth_ = 0;
+          window_count = 0;
+          latency_sum  = 0.0;
+          latency_max  = 0.0;
         }
 
         lk.lock();

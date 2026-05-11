@@ -4,7 +4,7 @@
 #include <memory>
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -34,7 +34,7 @@ public:
     rclcpp::QoS qos(1);
     qos.best_effort();
 
-    pub_cmd_   = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", qos);
+    pub_cmd_   = create_publisher<geometry_msgs::msg::TwistStamped>("/cmd_vel", qos);
     pub_imu_   = create_publisher<sensor_msgs::msg::Imu>("/imu", qos);
     pub_pts_   = create_publisher<sensor_msgs::msg::PointCloud2>("/points", qos);
     pub_front_ = create_publisher<sensor_msgs::msg::CompressedImage>("/camera/front/compressed", qos);
@@ -71,9 +71,10 @@ public:
 private:
   void init_cmd()
   {
-    msg_cmd_ = std::make_shared<geometry_msgs::msg::Twist>();
-    msg_cmd_->linear.x  = 0.5;
-    msg_cmd_->angular.z = 0.3;
+    msg_cmd_ = std::make_shared<geometry_msgs::msg::TwistStamped>();
+    msg_cmd_->header.frame_id    = "base_link";
+    msg_cmd_->twist.linear.x     = 0.5;
+    msg_cmd_->twist.angular.z    = 0.3;
   }
 
   void init_imu()
@@ -148,6 +149,7 @@ private:
 
   void pub_cmd()
   {
+    msg_cmd_->header.stamp = now();
     pub_cmd_->publish(*msg_cmd_);
     if (++cnt_cmd_ % 200 == 0) { RCLCPP_INFO(get_logger(), "/cmd_vel %lu msgs", cnt_cmd_); }
   }
@@ -187,7 +189,7 @@ private:
     if (++cnt_depth_ % 150 == 0) { RCLCPP_INFO(get_logger(), "/depth/image_raw %lu msgs", cnt_depth_); }
   }
 
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr      pub_cmd_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr pub_cmd_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr          pub_imu_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr  pub_pts_;
   rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr pub_front_;
@@ -197,7 +199,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_cmd_, timer_imu_, timer_pts_;
   rclcpp::TimerBase::SharedPtr timer_front_, timer_side_, timer_depth_;
 
-  geometry_msgs::msg::Twist::SharedPtr         msg_cmd_;
+  geometry_msgs::msg::TwistStamped::SharedPtr  msg_cmd_;
   sensor_msgs::msg::Imu::SharedPtr             msg_imu_;
   sensor_msgs::msg::PointCloud2::SharedPtr     msg_pts_;
   sensor_msgs::msg::CompressedImage::SharedPtr msg_front_;

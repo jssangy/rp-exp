@@ -49,6 +49,8 @@ private:
   {
     auto window_start = std::chrono::steady_clock::now();
     uint64_t window_count = 0;
+    double latency_sum = 0.0;
+    double latency_max = 0.0;
 
     while (running_) {
       std::unique_lock<std::mutex> lk(mtx_);
@@ -59,17 +61,25 @@ private:
         queue_.pop();
         lk.unlock();
 
+        auto recv_time = now();
+        double latency_ms = (recv_time - msg->header.stamp).nanoseconds() / 1e6;
+
         ++recv_count_;
         ++window_count;
+        latency_sum += latency_ms;
+        if (latency_ms > latency_max) latency_max = latency_ms;
 
-        auto now = std::chrono::steady_clock::now();
-        double elapsed = std::chrono::duration<double>(now - window_start).count();
+        auto now_steady = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
         if (elapsed >= 5.0) {
           RCLCPP_INFO(get_logger(),
-            "total %lu msgs | rate %.1f Hz | payload %zu KB",
-            recv_count_.load(), window_count / elapsed, msg->data.size() / 1024);
-          window_start = now;
+            "total %lu msgs | rate %.1f Hz | payload %zu KB | latency avg %.2f ms max %.2f ms",
+            recv_count_.load(), window_count / elapsed, msg->data.size() / 1024,
+            latency_sum / window_count, latency_max);
+          window_start = now_steady;
           window_count = 0;
+          latency_sum  = 0.0;
+          latency_max  = 0.0;
         }
 
         lk.lock();

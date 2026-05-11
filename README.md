@@ -26,20 +26,17 @@ ros2 daemon stop
 
 > publisher는 송신 머신, subscriber는 수신 머신에서 실행.
 
-### S1 — 원격 제어 (`/cmd_vel`, `geometry_msgs/Twist`)
+### S1 — 원격 제어 (`/cmd_vel`, `geometry_msgs/TwistStamped`)
 
 | 항목 | 값 |
 |------|-----|
 | 주기 | 20 Hz (기본) / 50 Hz (상한) |
-| 페이로드 | ~200 B |
-| 대역폭 | ~32 Kbps / ~80 Kbps |
+| CDR 페이로드 | ~72 B |
+| 대역폭 | ~29 Kbps (20 Hz) / ~72 Kbps (50 Hz) |
 
 ```bash
 # publisher — 기본 20 Hz
 ros2 run test s1_pub
-
-# publisher — 상한 50 Hz
-ros2 run test s1_pub 50.0
 
 # subscriber
 ros2 run test s1_sub
@@ -145,8 +142,8 @@ ros2 run test s4a_sub
 | 항목 | 값 |
 |------|-----|
 | 주기 | 30 Hz |
-| 페이로드 | ~614 KB (640×480, 16UC1) |
-| 대역폭 | ~148 Mbps |
+| 페이로드 | ~600 KB (640×480, 16UC1) |
+| 대역폭 | ~147 Mbps |
 
 ```bash
 # publisher
@@ -164,7 +161,7 @@ ros2 run test s4_image_sub /depth/image_raw
 |------|-----|
 | 구성 | /cmd_vel (20 Hz) + /imu (200 Hz) + /scan (40 Hz) + /image_raw/compressed (30 Hz) |
 | GID 수 | 4 |
-| 대역폭 | ~33–78 Mbps |
+| 대역폭 | ~50 Mbps |
 | 대표 플랫폼 | TurtleBot4, Clearpath Jackal |
 
 ```bash
@@ -183,7 +180,7 @@ ros2 launch test s5a_sub.launch.py
 |------|-----|
 | 구성 | /cmd_vel (20 Hz) + /imu (200 Hz) + /points 64ch (10 Hz) + /camera/front/compressed (30 Hz) + /camera/side/compressed (30 Hz) + /depth/image_raw (30 Hz) |
 | GID 수 | 6 |
-| 대역폭 | ~367–565 Mbps |
+| 대역폭 | ~449 Mbps |
 | 대표 플랫폼 | Autoware, Apollo |
 
 ```bash

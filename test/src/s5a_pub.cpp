@@ -3,7 +3,7 @@
 #include <memory>
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
@@ -27,7 +27,7 @@ public:
     rclcpp::QoS qos(1);
     qos.best_effort();
 
-    pub_cmd_  = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", qos);
+    pub_cmd_  = create_publisher<geometry_msgs::msg::TwistStamped>("/cmd_vel", qos);
     pub_imu_  = create_publisher<sensor_msgs::msg::Imu>("/imu", qos);
     pub_scan_ = create_publisher<sensor_msgs::msg::LaserScan>("/scan", qos);
     pub_cam_  = create_publisher<sensor_msgs::msg::CompressedImage>("/image_raw/compressed", qos);
@@ -57,9 +57,10 @@ public:
 private:
   void init_cmd()
   {
-    msg_cmd_ = std::make_shared<geometry_msgs::msg::Twist>();
-    msg_cmd_->linear.x  = 0.5;
-    msg_cmd_->angular.z = 0.3;
+    msg_cmd_ = std::make_shared<geometry_msgs::msg::TwistStamped>();
+    msg_cmd_->header.frame_id    = "base_link";
+    msg_cmd_->twist.linear.x     = 0.5;
+    msg_cmd_->twist.angular.z    = 0.3;
   }
 
   void init_imu()
@@ -106,6 +107,7 @@ private:
 
   void pub_cmd()
   {
+    msg_cmd_->header.stamp = now();
     pub_cmd_->publish(*msg_cmd_);
     if (++cnt_cmd_ % 200 == 0) {
       RCLCPP_INFO(get_logger(), "/cmd_vel %lu msgs", cnt_cmd_);
@@ -139,7 +141,7 @@ private:
     }
   }
 
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr    pub_cmd_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr pub_cmd_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr        pub_imu_;
   rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr  pub_scan_;
   rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr pub_cam_;
@@ -149,7 +151,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_scan_;
   rclcpp::TimerBase::SharedPtr timer_cam_;
 
-  geometry_msgs::msg::Twist::SharedPtr         msg_cmd_;
+  geometry_msgs::msg::TwistStamped::SharedPtr  msg_cmd_;
   sensor_msgs::msg::Imu::SharedPtr             msg_imu_;
   sensor_msgs::msg::LaserScan::SharedPtr       msg_scan_;
   sensor_msgs::msg::CompressedImage::SharedPtr msg_cam_;

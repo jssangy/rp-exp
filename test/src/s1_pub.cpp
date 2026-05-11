@@ -3,7 +3,7 @@
 #include <stdexcept>
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 
 class S1Publisher : public rclcpp::Node
 {
@@ -14,16 +14,16 @@ public:
     // BEST_EFFORT + KEEP_LAST(1)
     rclcpp::QoS qos(1);
     qos.best_effort();
-    pub_ = create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", qos);
+    pub_ = create_publisher<geometry_msgs::msg::TwistStamped>("/cmd_vel", qos);
 
-    // 메시지 초기화 시 한 번만 할당, 이후 재사용
-    msg_ = std::make_shared<geometry_msgs::msg::Twist>();
-    msg_->linear.x  = 0.5;
-    msg_->linear.y  = 0.0;
-    msg_->linear.z  = 0.0;
-    msg_->angular.x = 0.0;
-    msg_->angular.y = 0.0;
-    msg_->angular.z = 0.3;
+    msg_ = std::make_shared<geometry_msgs::msg::TwistStamped>();
+    msg_->header.frame_id    = "base_link";
+    msg_->twist.linear.x     = 0.5;
+    msg_->twist.linear.y     = 0.0;
+    msg_->twist.linear.z     = 0.0;
+    msg_->twist.angular.x    = 0.0;
+    msg_->twist.angular.y    = 0.0;
+    msg_->twist.angular.z    = 0.3;
 
     auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
       std::chrono::duration<double>(1.0 / hz));
@@ -35,6 +35,7 @@ public:
 private:
   void timer_cb()
   {
+    msg_->header.stamp = now();
     pub_->publish(*msg_);
 
     if (++pub_count_ % 200 == 0) {
@@ -42,9 +43,9 @@ private:
     }
   }
 
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr pub_;
   rclcpp::TimerBase::SharedPtr timer_;
-  geometry_msgs::msg::Twist::SharedPtr msg_;
+  geometry_msgs::msg::TwistStamped::SharedPtr msg_;
   uint64_t pub_count_;
 };
 

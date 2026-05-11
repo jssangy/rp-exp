@@ -8,12 +8,12 @@
 #include <variant>
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 
-using CmdMsg  = geometry_msgs::msg::Twist;
+using CmdMsg  = geometry_msgs::msg::TwistStamped;
 using ImuMsg  = sensor_msgs::msg::Imu;
 using ScanMsg = sensor_msgs::msg::LaserScan;
 using CamMsg  = sensor_msgs::msg::CompressedImage;
@@ -66,6 +66,9 @@ private:
   void process_loop()
   {
     auto window_start = std::chrono::steady_clock::now();
+    double latency_sum = 0.0;
+    double latency_max = 0.0;
+    uint64_t window_count = 0;
 
     while (running_) {
       std::unique_lock<std::mutex> lk(mtx_);
@@ -76,19 +79,33 @@ private:
         queue_.pop();
         lk.unlock();
 
+        auto recv_time = now();
         std::visit([this](auto && m) { count(m); }, msg);
 
-        auto now = std::chrono::steady_clock::now();
-        double elapsed = std::chrono::duration<double>(now - window_start).count();
+        double latency_ms = std::visit([&](auto && m) {
+          return (recv_time - m->header.stamp).nanoseconds() / 1e6;
+        }, msg);
+
+        ++window_count;
+        latency_sum += latency_ms;
+        if (latency_ms > latency_max) latency_max = latency_ms;
+
+        auto now_steady = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
         if (elapsed >= 5.0) {
           RCLCPP_INFO(get_logger(),
-            "recv 5s | /cmd_vel %.1fHz | /imu %.1fHz | /scan %.1fHz | /compressed %.1fHz",
+            "recv 5s | /cmd_vel %.1fHz | /imu %.1fHz | /scan %.1fHz | /compressed %.1fHz"
+            " | latency avg %.2f ms max %.2f ms",
             recv_cmd_.load()  / elapsed,
             recv_imu_.load()  / elapsed,
             recv_scan_.load() / elapsed,
-            recv_cam_.load()  / elapsed);
-          window_start = now;
+            recv_cam_.load()  / elapsed,
+            latency_sum / window_count, latency_max);
+          window_start = now_steady;
           recv_cmd_ = recv_imu_ = recv_scan_ = recv_cam_ = 0;
+          window_count = 0;
+          latency_sum  = 0.0;
+          latency_max  = 0.0;
         }
 
         lk.lock();
