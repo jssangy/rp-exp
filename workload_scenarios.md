@@ -127,7 +127,7 @@ RtpsProcessor DATA_FRAG 재조립 부하 진입.
 | 타입 | sensor_msgs/PointCloud2 |
 | 주기 | 10 Hz |
 | 페이로드 | ~2.72 MB (130,000 pts × 22 B/pt) |
-| 추정 대역폭 | ~217 Mbps |
+| 추정 대역폭 | ~229 Mbps |
 | IP 단편화 | 발생 / RTPS DATA_FRAG 발생 (다수 fragment) |
 | E2E 측정 | 가능 (header.stamp 포함) |
 | 구간 분류 | 현실 재현 |
