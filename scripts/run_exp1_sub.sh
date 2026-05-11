@@ -20,11 +20,13 @@ REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 ALL_SCENARIOS=(S1 S2 S3a S3b S3c S4a S4b S5a S5b)
 SCENARIOS=()
 N_RUNS=10
+BUFFER_S=180  # run_exp1_pub.sh 와 반드시 동일하게 설정
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --scenarios) IFS=',' read -ra SCENARIOS <<< "$2"; shift 2 ;;
     --runs)      N_RUNS="$2"; shift 2 ;;
+    --buffer)    BUFFER_S="$2"; shift 2 ;;
     *) echo "[ERROR] unknown option: $1"; exit 1 ;;
   esac
 done
@@ -44,8 +46,12 @@ export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
 export NIC
 
+# Laptop A 와 동일한 시나리오당 대기 시간
+SECS_PER_RUN=80
+SCENARIO_WAIT=$(( 5 * N_RUNS * SECS_PER_RUN + BUFFER_S ))
+
 # 시간 추정
-TOTAL_SECS=$(( ${#SCENARIOS[@]} * 5 * N_RUNS * 80 ))
+TOTAL_SECS=$(( ${#SCENARIOS[@]} * SCENARIO_WAIT ))
 TOTAL_H=$(( TOTAL_SECS / 3600 ))
 TOTAL_M=$(( (TOTAL_SECS % 3600) / 60 ))
 
@@ -90,8 +96,15 @@ for SCENARIO in "${SCENARIOS[@]}"; do
   done
 
   ELAPSED=$(( $(date +%s) - SCENARIO_START ))
+  REMAINING=$(( SCENARIO_WAIT - ELAPSED ))
   echo ""
   echo "  ✓ ${SCENARIO} 완료 — ${ELAPSED}s  ($(date '+%H:%M:%S'))"
+
+  # Laptop A의 publisher 전환 대기 (같은 SCENARIO_WAIT 기준으로 동기화)
+  if (( REMAINING > 0 )); then
+    echo "  다음 시나리오까지 ${REMAINING}s 대기 (Laptop A publisher 전환 중)..."
+    sleep "${REMAINING}"
+  fi
 done
 
 # 최종 요약
