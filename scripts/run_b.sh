@@ -54,7 +54,11 @@ mkdir -p "${OUTDIR}"
 echo "[run_b] ${SCENARIO}/${CONDITION}/run${RUN}  NIC=${NIC}  outdir=${OUTDIR}"
 
 # ── Step 3: observer 도구 (baseline은 skip) ─────────────────────────────────
+# rp_hz / rp_bag: rp run 을 먼저 실행(DDS 통신 전 프로빙 시작),
+#                 이후 rp topic hz / rp bag record 로 출력 제어
 OBS_PID=""
+RP_PID=""
+
 case ${CONDITION} in
   topic_hz)
     ros2 topic hz "${TOPIC}" > "${OUTDIR}/obs.log" 2>&1 &
@@ -65,11 +69,15 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rp_hz)
-    rp topic hz "${TOPIC}" > "${OUTDIR}/obs.log" 2>&1 &
+    rp run > "${OUTDIR}/obs.log" 2>&1 &
+    RP_PID=$!
+    rp topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_bag)
-    rp bag record ${BAG_TOPICS} -o "${OUTDIR}/bag" > "${OUTDIR}/obs.log" 2>&1 &
+    rp run > "${OUTDIR}/obs.log" 2>&1 &
+    RP_PID=$!
+    rp bag record ${BAG_TOPICS} -o "${OUTDIR}/bag" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   baseline)
@@ -94,6 +102,7 @@ ros2 run test "${SUB_NODE}" 2>&1 | tee "${OUTDIR}/sub.log"
 
 # ── Step 8: 정리 ─────────────────────────────────────────────────────────────
 [[ -n "${OBS_PID}" ]] && kill "${OBS_PID}" 2>/dev/null || true
+[[ -n "${RP_PID}"  ]] && kill "${RP_PID}"  2>/dev/null || true
 kill "${NETDEV_PID}" 2>/dev/null || true
 wait 2>/dev/null || true
 
