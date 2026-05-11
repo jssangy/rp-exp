@@ -103,34 +103,17 @@ ros2 run test s3_points_sub
 
 ---
 
-### S3-c — 3D LiDAR 32ch (`/points`, `sensor_msgs/PointCloud2`)
+### S3-c — 3D LiDAR 64/128ch (`/points`, `sensor_msgs/PointCloud2`)
 
 | 항목 | 값 |
 |------|-----|
 | 주기 | 10 Hz |
-| 페이로드 | ~1.3 MB (60,000 pts × 22 B) |
-| 대역폭 | ~106 Mbps |
+| 페이로드 | ~2.8 MB (130,000 pts × 22 B) |
+| 대역폭 | ~160–320 Mbps |
+| IP 단편화 / DATA_FRAG | 발생 |
 
 ```bash
 # publisher
-ros2 run test s3_points_pub 60000
-
-# subscriber
-ros2 run test s3_points_sub
-```
-
----
-
-### S3-d — 3D LiDAR 64/128ch (`/points`, `sensor_msgs/PointCloud2`)
-
-| 항목 | 값 |
-|------|-----|
-| 주기 | 10 Hz (기본) / 20 Hz (한계 탐색) |
-| 페이로드 | ~2.8 MB (130,000 pts × 22 B) |
-| 대역폭 | ~160–320 Mbps @ 10 Hz |
-
-```bash
-# publisher — 10 Hz (현실 재현)
 ros2 run test s3_points_pub 130000
 
 # subscriber
@@ -175,42 +158,6 @@ ros2 run test s4_image_sub /depth/image_raw
 
 ---
 
-### S4-c — Raw RGB 720p (`/image_raw`, `sensor_msgs/Image`) ⚠️ 한계 탐색
-
-| 항목 | 값 |
-|------|-----|
-| 주기 | 30 Hz |
-| 페이로드 | ~2.76 MB (1280×720, rgb8) |
-| 대역폭 | ~664 Mbps (GbE 한계 근접) |
-
-```bash
-# publisher
-ros2 run test s4_image_pub 1280 720 rgb8
-
-# subscriber
-ros2 run test s4_image_sub /image_raw
-```
-
----
-
-### S4-d — Raw RGB 1080p (`/image_raw`, `sensor_msgs/Image`) ⚠️ 한계 탐색
-
-| 항목 | 값 |
-|------|-----|
-| 주기 | 30 Hz |
-| 페이로드 | ~6.22 MB (1920×1080, rgb8) |
-| 대역폭 | ~1.49 Gbps (GbE 초과) |
-
-```bash
-# publisher
-ros2 run test s4_image_pub 1920 1080 rgb8
-
-# subscriber
-ros2 run test s4_image_sub /image_raw
-```
-
----
-
 ### S5-a — 실내 AMR 복합 워크로드
 
 | 항목 | 값 |
@@ -240,7 +187,7 @@ ros2 launch test s5a_sub.launch.py
 | 대표 플랫폼 | Autoware, Apollo |
 
 ```bash
-# 송신 머신 (S3-d 포함으로 Jetson 또는 노트북 권장)
+# 송신 머신 (S3-c 포함으로 Jetson 또는 노트북 권장)
 ros2 launch test s5b_pub.launch.py
 
 # 수신 머신
@@ -256,8 +203,8 @@ ros2 launch test s5b_sub.launch.py
 | `s1_pub` / `s1_sub` | S1 pub/sub | `/cmd_vel` |
 | `s2_pub` / `s2_sub` | S2 pub/sub | `/imu` |
 | `s3a_pub` / `s3a_sub` | S3-a pub/sub | `/scan` |
-| `s3_points_pub` / `s3_points_sub` | S3-b/c/d pub/sub | `/points` |
+| `s3_points_pub` / `s3_points_sub` | S3-b/c pub/sub | `/points` |
 | `s4a_pub` / `s4a_sub` | S4-a pub/sub | `/image_raw/compressed` |
-| `s4_image_pub` / `s4_image_sub` | S4-b/c/d pub/sub | `/depth/image_raw`, `/image_raw` |
+| `s4_image_pub` / `s4_image_sub` | S4-b pub/sub | `/depth/image_raw` |
 | `s5a_pub.launch.py` / `s5a_sub.launch.py` | S5-a 복합 (4개 노드) | /cmd_vel /imu /scan /image_raw/compressed |
 | `s5b_pub.launch.py` / `s5b_sub.launch.py` | S5-b 복합 (6개 노드) | /cmd_vel /imu /points /camera/front /camera/side /depth/image_raw |
