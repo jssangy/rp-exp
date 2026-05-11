@@ -68,7 +68,7 @@ int main(int argc, char ** argv)
   rclcpp::init(argc, argv);
   auto args = rclcpp::remove_ros_arguments(argc, argv);
 
-  uint64_t max_count = static_cast<uint64_t>(HZ * 60.0);
+  uint64_t max_count = 0;  // 0 = infinite; subscriber controls measurement window
   if (args.size() > 1) {
     max_count = std::stoull(args[1]);
   }

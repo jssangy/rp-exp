@@ -89,7 +89,7 @@ int main(int argc, char ** argv)
   uint32_t    width     = 640;
   uint32_t    height    = 480;
   std::string encoding  = "16UC1";
-  uint64_t    max_count = static_cast<uint64_t>(HZ * 60.0);
+  uint64_t    max_count = 0;  // 0 = infinite; subscriber controls measurement window
 
   if (args.size() == 4 || args.size() == 5) {
     width    = static_cast<uint32_t>(std::stoul(args[1]));

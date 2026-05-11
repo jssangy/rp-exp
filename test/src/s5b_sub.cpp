@@ -32,11 +32,19 @@ using AnyMsg = std::variant<
   Side,
   ImgMsg::SharedPtr>;
 
+// expected per topic: Hz × 60 s
+static constexpr uint64_t EXP_CMD   = 20  * 60;
+static constexpr uint64_t EXP_IMU   = 200 * 60;
+static constexpr uint64_t EXP_PTS   = 10  * 60;
+static constexpr uint64_t EXP_FRONT = 30  * 60;
+static constexpr uint64_t EXP_SIDE  = 30  * 60;
+static constexpr uint64_t EXP_DEPTH = 30  * 60;
+
 class S5bSubscriber : public rclcpp::Node
 {
 public:
   S5bSubscriber()
-  : Node("s5b_subscriber"), running_(true),
+  : Node("s5b_subscriber"), running_(true), measuring_(false),
     recv_cmd_(0), recv_imu_(0), recv_pts_(0),
     recv_front_(0), recv_side_(0), recv_depth_(0)
   {
@@ -58,9 +66,33 @@ public:
 
     proc_thread_ = std::thread(&S5bSubscriber::process_loop, this);
 
+    using namespace std::chrono_literals;
+    timer_warmup_ = create_wall_timer(10s, [this]() {
+      measuring_ = true;
+      timer_warmup_->cancel();
+      timer_measure_ = create_wall_timer(60s, [this]() {
+        RCLCPP_INFO(get_logger(),
+          "FINAL [60s]:"
+          " cmd %lu/%lu(%.1f%%)"
+          " imu %lu/%lu(%.1f%%)"
+          " pts %lu/%lu(%.1f%%)"
+          " front %lu/%lu(%.1f%%)"
+          " side %lu/%lu(%.1f%%)"
+          " depth %lu/%lu(%.1f%%)",
+          recv_cmd_.load(),   EXP_CMD,   drop_pct(recv_cmd_.load(),   EXP_CMD),
+          recv_imu_.load(),   EXP_IMU,   drop_pct(recv_imu_.load(),   EXP_IMU),
+          recv_pts_.load(),   EXP_PTS,   drop_pct(recv_pts_.load(),   EXP_PTS),
+          recv_front_.load(), EXP_FRONT, drop_pct(recv_front_.load(), EXP_FRONT),
+          recv_side_.load(),  EXP_SIDE,  drop_pct(recv_side_.load(),  EXP_SIDE),
+          recv_depth_.load(), EXP_DEPTH, drop_pct(recv_depth_.load(), EXP_DEPTH));
+        rclcpp::shutdown();
+      });
+    });
+
     RCLCPP_INFO(get_logger(),
       "S5-b subscriber started (로보택시): "
-      "/cmd_vel /imu /points /camera/front /camera/side /depth/image_raw");
+      "/cmd_vel /imu /points /camera/front /camera/side /depth/image_raw"
+      " (10s warmup + 60s measure)");
   }
 
   ~S5bSubscriber()
@@ -68,12 +100,14 @@ public:
     running_ = false;
     cv_.notify_all();
     if (proc_thread_.joinable()) { proc_thread_.join(); }
-    std::printf("[S5-b] FINAL received: cmd %lu | imu %lu | pts %lu | front %lu | side %lu | depth %lu msgs\n",
-      total_cmd_.load(), total_imu_.load(), total_pts_.load(),
-      total_front_.load(), total_side_.load(), total_depth_.load());
   }
 
 private:
+  static double drop_pct(uint64_t recv, uint64_t expected)
+  {
+    return 100.0 * (expected - std::min(recv, expected)) / expected;
+  }
+
   template<typename T>
   void enqueue(T msg)
   {
@@ -95,10 +129,12 @@ private:
 
   void process_loop()
   {
-    auto window_start = std::chrono::steady_clock::now();
-    double latency_sum = 0.0;
-    double latency_max = 0.0;
+    std::chrono::steady_clock::time_point window_start;
+    bool window_started = false;
+    double latency_sum = 0.0, latency_max = 0.0;
     uint64_t window_count = 0;
+    // window-local per-topic counters (reset every 5s)
+    uint64_t w_cmd = 0, w_imu = 0, w_pts = 0, w_front = 0, w_side = 0, w_depth = 0;
 
     while (running_) {
       std::unique_lock<std::mutex> lk(mtx_);
@@ -109,33 +145,32 @@ private:
         queue_.pop();
         lk.unlock();
 
-        auto recv_time = now();
-        std::visit([this](auto && m) { count(m); }, msg);
+        if (measuring_) {
+          if (!window_started) {
+            window_start = std::chrono::steady_clock::now();
+            window_started = true;
+          }
+          count(msg, w_cmd, w_imu, w_pts, w_front, w_side, w_depth);
 
-        double latency_ms = (recv_time - stamp_of(msg)).nanoseconds() / 1e6;
+          double latency_ms = (now() - stamp_of(msg)).nanoseconds() / 1e6;
+          ++window_count;
+          latency_sum += latency_ms;
+          if (latency_ms > latency_max) latency_max = latency_ms;
 
-        ++window_count;
-        latency_sum += latency_ms;
-        if (latency_ms > latency_max) latency_max = latency_ms;
-
-        auto now_steady = std::chrono::steady_clock::now();
-        double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
-        if (elapsed >= 5.0) {
-          RCLCPP_INFO(get_logger(),
-            "recv 5s | cmd %.1f | imu %.1f | pts %.1f | front %.1f | side %.1f | depth %.1f Hz"
-            " | latency avg %.2f ms max %.2f ms",
-            recv_cmd_.load()   / elapsed,
-            recv_imu_.load()   / elapsed,
-            recv_pts_.load()   / elapsed,
-            recv_front_.load() / elapsed,
-            recv_side_.load()  / elapsed,
-            recv_depth_.load() / elapsed,
-            latency_sum / window_count, latency_max);
-          window_start = now_steady;
-          recv_cmd_ = recv_imu_ = recv_pts_ = recv_front_ = recv_side_ = recv_depth_ = 0;
-          window_count = 0;
-          latency_sum  = 0.0;
-          latency_max  = 0.0;
+          auto now_steady = std::chrono::steady_clock::now();
+          double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
+          if (elapsed >= 5.0) {
+            RCLCPP_INFO(get_logger(),
+              "recv 5s | cmd %.1f | imu %.1f | pts %.1f | front %.1f | side %.1f | depth %.1f Hz"
+              " | latency avg %.2f ms max %.2f ms",
+              w_cmd / elapsed, w_imu / elapsed, w_pts / elapsed,
+              w_front / elapsed, w_side / elapsed, w_depth / elapsed,
+              latency_sum / window_count, latency_max);
+            window_start = now_steady;
+            w_cmd = w_imu = w_pts = w_front = w_side = w_depth = window_count = 0;
+            latency_sum = 0.0;
+            latency_max = 0.0;
+          }
         }
 
         lk.lock();
@@ -143,12 +178,20 @@ private:
     }
   }
 
-  void count(const CmdMsg::SharedPtr &) { ++recv_cmd_;   ++total_cmd_; }
-  void count(const ImuMsg::SharedPtr &) { ++recv_imu_;   ++total_imu_; }
-  void count(const PtsMsg::SharedPtr &) { ++recv_pts_;   ++total_pts_; }
-  void count(const Front &)             { ++recv_front_; ++total_front_; }
-  void count(const Side &)              { ++recv_side_;  ++total_side_; }
-  void count(const ImgMsg::SharedPtr &) { ++recv_depth_; ++total_depth_; }
+  void count(const AnyMsg & msg,
+             uint64_t & wc, uint64_t & wi, uint64_t & wp,
+             uint64_t & wf, uint64_t & ws, uint64_t & wd)
+  {
+    std::visit([&](auto && m) {
+      using T = std::decay_t<decltype(m)>;
+      if constexpr (std::is_same_v<T, CmdMsg::SharedPtr>)  { ++recv_cmd_;   ++wc; }
+      else if constexpr (std::is_same_v<T, ImuMsg::SharedPtr>)  { ++recv_imu_;   ++wi; }
+      else if constexpr (std::is_same_v<T, PtsMsg::SharedPtr>)  { ++recv_pts_;   ++wp; }
+      else if constexpr (std::is_same_v<T, Front>)              { ++recv_front_; ++wf; }
+      else if constexpr (std::is_same_v<T, Side>)               { ++recv_side_;  ++ws; }
+      else if constexpr (std::is_same_v<T, ImgMsg::SharedPtr>)  { ++recv_depth_; ++wd; }
+    }, msg);
+  }
 
   rclcpp::Subscription<CmdMsg>::SharedPtr  sub_cmd_;
   rclcpp::Subscription<ImuMsg>::SharedPtr  sub_imu_;
@@ -162,11 +205,13 @@ private:
   std::condition_variable cv_;
   std::thread proc_thread_;
   std::atomic<bool> running_;
+  std::atomic<bool> measuring_;
 
+  // measurement-window totals
   std::atomic<uint64_t> recv_cmd_, recv_imu_, recv_pts_;
   std::atomic<uint64_t> recv_front_, recv_side_, recv_depth_;
-  std::atomic<uint64_t> total_cmd_{0}, total_imu_{0}, total_pts_{0};
-  std::atomic<uint64_t> total_front_{0}, total_side_{0}, total_depth_{0};
+
+  rclcpp::TimerBase::SharedPtr timer_warmup_, timer_measure_;
 };
 
 int main(int argc, char ** argv)

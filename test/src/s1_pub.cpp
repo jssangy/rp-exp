@@ -71,7 +71,7 @@ int main(int argc, char ** argv)
     RCLCPP_WARN(rclcpp::get_logger("s1_pub"), "Hz %.1f > 50 (S1 상한), 50으로 제한", hz);
     hz = 50.0;
   }
-  uint64_t max_count = static_cast<uint64_t>(hz * 60.0);
+  uint64_t max_count = 0;  // 0 = infinite; subscriber controls measurement window
   if (args.size() > 2) {
     max_count = std::stoull(args[2]);
   }

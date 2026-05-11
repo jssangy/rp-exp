@@ -102,7 +102,7 @@ int main(int argc, char ** argv)
   if (args.size() > 1) {
     num_points = static_cast<uint32_t>(std::stoul(args[1]));
   }
-  uint64_t max_count = static_cast<uint64_t>(HZ * 60.0);
+  uint64_t max_count = 0;  // 0 = infinite; subscriber controls measurement window
   if (args.size() > 2) {
     max_count = std::stoull(args[2]);
   }

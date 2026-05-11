@@ -175,7 +175,7 @@ int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
   auto args = rclcpp::remove_ros_arguments(argc, argv);
-  double duration_s = 60.0;
+  double duration_s = 300.0;
   if (args.size() > 1) {
     duration_s = std::stod(args[1]);
   }
