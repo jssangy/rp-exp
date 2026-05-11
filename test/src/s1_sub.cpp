@@ -34,6 +34,7 @@ public:
     if (proc_thread_.joinable()) {
       proc_thread_.join();
     }
+    std::printf("[S1] FINAL received: %lu msgs\n", recv_count_.load());
   }
 
 private:

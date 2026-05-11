@@ -53,6 +53,8 @@ public:
     running_ = false;
     cv_.notify_all();
     if (proc_thread_.joinable()) { proc_thread_.join(); }
+    std::printf("[S5-a] FINAL received: cmd %lu | imu %lu | scan %lu | cam %lu msgs\n",
+      total_cmd_.load(), total_imu_.load(), total_scan_.load(), total_cam_.load());
   }
 
 private:
@@ -113,10 +115,10 @@ private:
     }
   }
 
-  void count(const CmdMsg::SharedPtr &)  { ++recv_cmd_; }
-  void count(const ImuMsg::SharedPtr &)  { ++recv_imu_; }
-  void count(const ScanMsg::SharedPtr &) { ++recv_scan_; }
-  void count(const CamMsg::SharedPtr &)  { ++recv_cam_; }
+  void count(const CmdMsg::SharedPtr &)  { ++recv_cmd_;  ++total_cmd_; }
+  void count(const ImuMsg::SharedPtr &)  { ++recv_imu_;  ++total_imu_; }
+  void count(const ScanMsg::SharedPtr &) { ++recv_scan_; ++total_scan_; }
+  void count(const CamMsg::SharedPtr &)  { ++recv_cam_;  ++total_cam_; }
 
   rclcpp::Subscription<CmdMsg>::SharedPtr  sub_cmd_;
   rclcpp::Subscription<ImuMsg>::SharedPtr  sub_imu_;
@@ -130,6 +132,7 @@ private:
   std::atomic<bool> running_;
 
   std::atomic<uint64_t> recv_cmd_, recv_imu_, recv_scan_, recv_cam_;
+  std::atomic<uint64_t> total_cmd_{0}, total_imu_{0}, total_scan_{0}, total_cam_{0};
 };
 
 int main(int argc, char ** argv)

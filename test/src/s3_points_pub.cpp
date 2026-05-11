@@ -18,8 +18,8 @@ static constexpr uint32_t DEFAULT_NUM_POINTS = 30000;
 class S3PointsPublisher : public rclcpp::Node
 {
 public:
-  explicit S3PointsPublisher(uint32_t num_points)
-  : Node("s3_points_publisher"), pub_count_(0)
+  explicit S3PointsPublisher(uint32_t num_points, uint64_t max_count)
+  : Node("s3_points_publisher"), pub_count_(0), max_count_(max_count)
   {
     rclcpp::QoS qos(1);
     qos.best_effort();
@@ -60,8 +60,8 @@ public:
 
     double payload_kb = num_points * POINT_STEP / 1024.0;
     RCLCPP_INFO(get_logger(),
-      "S3 points publisher started: %.1f Hz, %u pts, %.1f KB/msg, BEST_EFFORT",
-      HZ, num_points, payload_kb);
+      "S3 points publisher started: %.1f Hz, %u pts, %.1f KB/msg, max %lu msgs, BEST_EFFORT",
+      HZ, num_points, payload_kb, max_count_);
 
     auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
       std::chrono::duration<double>(1.0 / HZ));
@@ -73,8 +73,15 @@ private:
   {
     msg_->header.stamp = now();
     pub_->publish(*msg_);
+    ++pub_count_;
 
-    if (++pub_count_ % 50 == 0) {
+    if (max_count_ > 0 && pub_count_ >= max_count_) {
+      RCLCPP_INFO(get_logger(), "DONE: published %lu msgs", pub_count_);
+      timer_->cancel();
+      rclcpp::shutdown();
+      return;
+    }
+    if (pub_count_ % 50 == 0) {
       RCLCPP_INFO(get_logger(), "published %lu msgs", pub_count_);
     }
   }
@@ -83,6 +90,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   sensor_msgs::msg::PointCloud2::SharedPtr msg_;
   uint64_t pub_count_;
+  uint64_t max_count_;
 };
 
 int main(int argc, char ** argv)
@@ -94,8 +102,12 @@ int main(int argc, char ** argv)
   if (args.size() > 1) {
     num_points = static_cast<uint32_t>(std::stoul(args[1]));
   }
+  uint64_t max_count = static_cast<uint64_t>(HZ * 60.0);
+  if (args.size() > 2) {
+    max_count = std::stoull(args[2]);
+  }
 
-  auto node = std::make_shared<S3PointsPublisher>(num_points);
+  auto node = std::make_shared<S3PointsPublisher>(num_points, max_count);
 
   rclcpp::executors::MultiThreadedExecutor exec;
   exec.add_node(node);

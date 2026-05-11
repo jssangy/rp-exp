@@ -8,8 +8,8 @@
 class S1Publisher : public rclcpp::Node
 {
 public:
-  explicit S1Publisher(double hz)
-  : Node("s1_publisher"), pub_count_(0)
+  explicit S1Publisher(double hz, uint64_t max_count)
+  : Node("s1_publisher"), pub_count_(0), max_count_(max_count)
   {
     // BEST_EFFORT + KEEP_LAST(1)
     rclcpp::QoS qos(1);
@@ -29,7 +29,8 @@ public:
       std::chrono::duration<double>(1.0 / hz));
     timer_ = create_wall_timer(period, [this]() { timer_cb(); });
 
-    RCLCPP_INFO(get_logger(), "S1 publisher started: %.1f Hz, BEST_EFFORT", hz);
+    RCLCPP_INFO(get_logger(), "S1 publisher started: %.1f Hz, max %lu msgs, BEST_EFFORT",
+      hz, max_count_);
   }
 
 private:
@@ -37,8 +38,15 @@ private:
   {
     msg_->header.stamp = now();
     pub_->publish(*msg_);
+    ++pub_count_;
 
-    if (++pub_count_ % 200 == 0) {
+    if (max_count_ > 0 && pub_count_ >= max_count_) {
+      RCLCPP_INFO(get_logger(), "DONE: published %lu msgs", pub_count_);
+      timer_->cancel();
+      rclcpp::shutdown();
+      return;
+    }
+    if (pub_count_ % 200 == 0) {
       RCLCPP_INFO(get_logger(), "published %lu msgs", pub_count_);
     }
   }
@@ -47,6 +55,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   geometry_msgs::msg::TwistStamped::SharedPtr msg_;
   uint64_t pub_count_;
+  uint64_t max_count_;
 };
 
 int main(int argc, char ** argv)
@@ -62,8 +71,12 @@ int main(int argc, char ** argv)
     RCLCPP_WARN(rclcpp::get_logger("s1_pub"), "Hz %.1f > 50 (S1 상한), 50으로 제한", hz);
     hz = 50.0;
   }
+  uint64_t max_count = static_cast<uint64_t>(hz * 60.0);
+  if (args.size() > 2) {
+    max_count = std::stoull(args[2]);
+  }
 
-  auto node = std::make_shared<S1Publisher>(hz);
+  auto node = std::make_shared<S1Publisher>(hz, max_count);
 
   rclcpp::executors::MultiThreadedExecutor exec;
   exec.add_node(node);

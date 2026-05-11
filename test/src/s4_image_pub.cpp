@@ -20,8 +20,9 @@ static uint32_t step_from_encoding(const std::string & enc)
 class S4ImagePublisher : public rclcpp::Node
 {
 public:
-  S4ImagePublisher(uint32_t width, uint32_t height, const std::string & encoding)
-  : Node("s4_image_publisher"), pub_count_(0)
+  S4ImagePublisher(uint32_t width, uint32_t height, const std::string & encoding,
+                   uint64_t max_count)
+  : Node("s4_image_publisher"), pub_count_(0), max_count_(max_count)
   {
     rclcpp::QoS qos(1);
     qos.best_effort();
@@ -46,8 +47,8 @@ public:
 
     double payload_mb = static_cast<double>(height * row_step) / (1024.0 * 1024.0);
     RCLCPP_INFO(get_logger(),
-      "S4 image publisher started: %s %ux%u, %.2f MB/msg, %.1f Hz, BEST_EFFORT",
-      encoding.c_str(), width, height, payload_mb, HZ);
+      "S4 image publisher started: %s %ux%u, %.2f MB/msg, %.1f Hz, max %lu msgs, BEST_EFFORT",
+      encoding.c_str(), width, height, payload_mb, HZ, max_count_);
 
     auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
       std::chrono::duration<double>(1.0 / HZ));
@@ -59,8 +60,15 @@ private:
   {
     msg_->header.stamp = now();
     pub_->publish(*msg_);
+    ++pub_count_;
 
-    if (++pub_count_ % 150 == 0) {
+    if (max_count_ > 0 && pub_count_ >= max_count_) {
+      RCLCPP_INFO(get_logger(), "DONE: published %lu msgs", pub_count_);
+      timer_->cancel();
+      rclcpp::shutdown();
+      return;
+    }
+    if (pub_count_ % 150 == 0) {
       RCLCPP_INFO(get_logger(), "published %lu msgs", pub_count_);
     }
   }
@@ -69,6 +77,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   sensor_msgs::msg::Image::SharedPtr msg_;
   uint64_t pub_count_;
+  uint64_t max_count_;
 };
 
 int main(int argc, char ** argv)
@@ -77,23 +86,29 @@ int main(int argc, char ** argv)
   auto args = rclcpp::remove_ros_arguments(argc, argv);
 
   // 기본값: S4-b (depth, 16UC1, 640x480)
-  uint32_t    width    = 640;
-  uint32_t    height   = 480;
-  std::string encoding = "16UC1";
+  uint32_t    width     = 640;
+  uint32_t    height    = 480;
+  std::string encoding  = "16UC1";
+  uint64_t    max_count = static_cast<uint64_t>(HZ * 60.0);
 
-  if (args.size() == 4) {
+  if (args.size() == 4 || args.size() == 5) {
     width    = static_cast<uint32_t>(std::stoul(args[1]));
     height   = static_cast<uint32_t>(std::stoul(args[2]));
     encoding = args[3];
+    if (args.size() == 5) {
+      max_count = std::stoull(args[4]);
+    }
+  } else if (args.size() == 2) {
+    max_count = std::stoull(args[1]);
   } else if (args.size() != 1) {
     RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),
-      "usage: s4_image_pub [width height encoding]");
+      "usage: s4_image_pub [width height encoding [max_count]]");
     RCLCPP_ERROR(rclcpp::get_logger("s4_image_pub"),
       "  S4-b: 640  480  16UC1   (~614 KB)");
     return 1;
   }
 
-  auto node = std::make_shared<S4ImagePublisher>(width, height, encoding);
+  auto node = std::make_shared<S4ImagePublisher>(width, height, encoding, max_count);
 
   rclcpp::executors::MultiThreadedExecutor exec;
   exec.add_node(node);

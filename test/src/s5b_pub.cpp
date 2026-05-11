@@ -27,9 +27,10 @@ static constexpr uint32_t DEPTH_H       = 480;
 class S5bPublisher : public rclcpp::Node
 {
 public:
-  S5bPublisher()
+  explicit S5bPublisher(double duration_s)
   : Node("s5b_publisher"),
-    cnt_cmd_(0), cnt_imu_(0), cnt_pts_(0), cnt_front_(0), cnt_side_(0), cnt_depth_(0)
+    cnt_cmd_(0), cnt_imu_(0), cnt_pts_(0), cnt_front_(0), cnt_side_(0), cnt_depth_(0),
+    duration_s_(duration_s)
   {
     rclcpp::QoS qos(1);
     qos.best_effort();
@@ -61,11 +62,20 @@ public:
     timer_side_  = make_timer(HZ_CAM,    [this]() { pub_side(); });
     timer_depth_ = make_timer(HZ_CAM,    [this]() { pub_depth(); });
 
+    auto shutdown_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::duration<double>(duration_s_));
+    timer_shutdown_ = create_wall_timer(shutdown_ns, [this]() {
+      RCLCPP_INFO(get_logger(),
+        "DONE (%.0fs): cmd %lu | imu %lu | pts %lu | front %lu | side %lu | depth %lu msgs",
+        duration_s_, cnt_cmd_, cnt_imu_, cnt_pts_, cnt_front_, cnt_side_, cnt_depth_);
+      rclcpp::shutdown();
+    });
+
     RCLCPP_INFO(get_logger(),
       "S5-b publisher started (로보택시): "
       "/cmd_vel %.0fHz | /imu %.0fHz | /points %upts %.0fHz | "
-      "front/side compressed %.0fHz | /depth/image_raw %.0fHz",
-      HZ_CMD, HZ_IMU, NUM_POINTS, HZ_POINTS, HZ_CAM, HZ_CAM);
+      "front/side compressed %.0fHz | /depth/image_raw %.0fHz | %.0fs",
+      HZ_CMD, HZ_IMU, NUM_POINTS, HZ_POINTS, HZ_CAM, HZ_CAM, duration_s_);
   }
 
 private:
@@ -198,6 +208,7 @@ private:
 
   rclcpp::TimerBase::SharedPtr timer_cmd_, timer_imu_, timer_pts_;
   rclcpp::TimerBase::SharedPtr timer_front_, timer_side_, timer_depth_;
+  rclcpp::TimerBase::SharedPtr timer_shutdown_;
 
   geometry_msgs::msg::TwistStamped::SharedPtr  msg_cmd_;
   sensor_msgs::msg::Imu::SharedPtr             msg_imu_;
@@ -207,12 +218,18 @@ private:
   sensor_msgs::msg::Image::SharedPtr           msg_depth_;
 
   uint64_t cnt_cmd_, cnt_imu_, cnt_pts_, cnt_front_, cnt_side_, cnt_depth_;
+  double duration_s_;
 };
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<S5bPublisher>();
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
+  double duration_s = 60.0;
+  if (args.size() > 1) {
+    duration_s = std::stod(args[1]);
+  }
+  auto node = std::make_shared<S5bPublisher>(duration_s);
   rclcpp::executors::MultiThreadedExecutor exec;
   exec.add_node(node);
   exec.spin();

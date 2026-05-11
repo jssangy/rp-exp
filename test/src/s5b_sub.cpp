@@ -68,6 +68,9 @@ public:
     running_ = false;
     cv_.notify_all();
     if (proc_thread_.joinable()) { proc_thread_.join(); }
+    std::printf("[S5-b] FINAL received: cmd %lu | imu %lu | pts %lu | front %lu | side %lu | depth %lu msgs\n",
+      total_cmd_.load(), total_imu_.load(), total_pts_.load(),
+      total_front_.load(), total_side_.load(), total_depth_.load());
   }
 
 private:
@@ -140,12 +143,12 @@ private:
     }
   }
 
-  void count(const CmdMsg::SharedPtr &) { ++recv_cmd_; }
-  void count(const ImuMsg::SharedPtr &) { ++recv_imu_; }
-  void count(const PtsMsg::SharedPtr &) { ++recv_pts_; }
-  void count(const Front &)             { ++recv_front_; }
-  void count(const Side &)              { ++recv_side_; }
-  void count(const ImgMsg::SharedPtr &) { ++recv_depth_; }
+  void count(const CmdMsg::SharedPtr &) { ++recv_cmd_;   ++total_cmd_; }
+  void count(const ImuMsg::SharedPtr &) { ++recv_imu_;   ++total_imu_; }
+  void count(const PtsMsg::SharedPtr &) { ++recv_pts_;   ++total_pts_; }
+  void count(const Front &)             { ++recv_front_; ++total_front_; }
+  void count(const Side &)              { ++recv_side_;  ++total_side_; }
+  void count(const ImgMsg::SharedPtr &) { ++recv_depth_; ++total_depth_; }
 
   rclcpp::Subscription<CmdMsg>::SharedPtr  sub_cmd_;
   rclcpp::Subscription<ImuMsg>::SharedPtr  sub_imu_;
@@ -162,6 +165,8 @@ private:
 
   std::atomic<uint64_t> recv_cmd_, recv_imu_, recv_pts_;
   std::atomic<uint64_t> recv_front_, recv_side_, recv_depth_;
+  std::atomic<uint64_t> total_cmd_{0}, total_imu_{0}, total_pts_{0};
+  std::atomic<uint64_t> total_front_{0}, total_side_{0}, total_depth_{0};
 };
 
 int main(int argc, char ** argv)

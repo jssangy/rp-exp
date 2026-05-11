@@ -33,6 +33,7 @@ public:
     if (proc_thread_.joinable()) {
       proc_thread_.join();
     }
+    std::printf("[S3] FINAL received: %lu msgs\n", recv_count_.load());
   }
 
 private:

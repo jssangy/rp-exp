@@ -20,9 +20,10 @@ static constexpr uint32_t JPEG_SIZE_B = 150 * 1024;
 class S5aPublisher : public rclcpp::Node
 {
 public:
-  S5aPublisher()
+  explicit S5aPublisher(double duration_s)
   : Node("s5a_publisher"),
-    cnt_cmd_(0), cnt_imu_(0), cnt_scan_(0), cnt_cam_(0)
+    cnt_cmd_(0), cnt_imu_(0), cnt_scan_(0), cnt_cam_(0),
+    duration_s_(duration_s)
   {
     rclcpp::QoS qos(1);
     qos.best_effort();
@@ -48,10 +49,19 @@ public:
     timer_scan_ = make_timer(HZ_SCAN, [this]() { pub_scan(); });
     timer_cam_  = make_timer(HZ_CAM,  [this]() { pub_cam(); });
 
+    auto shutdown_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::duration<double>(duration_s));
+    timer_shutdown_ = create_wall_timer(shutdown_ns, [this]() {
+      RCLCPP_INFO(get_logger(),
+        "DONE (%.0fs): cmd %lu | imu %lu | scan %lu | cam %lu msgs",
+        duration_s_, cnt_cmd_, cnt_imu_, cnt_scan_, cnt_cam_);
+      rclcpp::shutdown();
+    });
+
     RCLCPP_INFO(get_logger(),
       "S5-a publisher started (실내 AMR): "
-      "/cmd_vel %.0fHz | /imu %.0fHz | /scan %.0fHz | /image_raw/compressed %.0fHz",
-      HZ_CMD, HZ_IMU, HZ_SCAN, HZ_CAM);
+      "/cmd_vel %.0fHz | /imu %.0fHz | /scan %.0fHz | /image_raw/compressed %.0fHz | %.0fs",
+      HZ_CMD, HZ_IMU, HZ_SCAN, HZ_CAM, duration_s_);
   }
 
 private:
@@ -150,6 +160,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_imu_;
   rclcpp::TimerBase::SharedPtr timer_scan_;
   rclcpp::TimerBase::SharedPtr timer_cam_;
+  rclcpp::TimerBase::SharedPtr timer_shutdown_;
 
   geometry_msgs::msg::TwistStamped::SharedPtr  msg_cmd_;
   sensor_msgs::msg::Imu::SharedPtr             msg_imu_;
@@ -157,12 +168,18 @@ private:
   sensor_msgs::msg::CompressedImage::SharedPtr msg_cam_;
 
   uint64_t cnt_cmd_, cnt_imu_, cnt_scan_, cnt_cam_;
+  double duration_s_;
 };
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<S5aPublisher>();
+  auto args = rclcpp::remove_ros_arguments(argc, argv);
+  double duration_s = 60.0;
+  if (args.size() > 1) {
+    duration_s = std::stod(args[1]);
+  }
+  auto node = std::make_shared<S5aPublisher>(duration_s);
   rclcpp::executors::MultiThreadedExecutor exec;
   exec.add_node(node);
   exec.spin();
