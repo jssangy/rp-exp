@@ -52,9 +52,9 @@ setup_env() {
 
   echo "[setup] chrony NTP 서버 설정..."
   # 이전에 추가한 항목 제거 후 재추가
-  sudo sed -i '/#rp-exp/d' /etc/chrony/chrony.conf
-  echo "local stratum 1  #rp-exp" | sudo tee -a /etc/chrony/chrony.conf > /dev/null
-  echo "allow 0/0         #rp-exp" | sudo tee -a /etc/chrony/chrony.conf > /dev/null
+  sudo sed -i '/### rp-exp/,/### rp-exp-end/d' /etc/chrony/chrony.conf
+  printf '### rp-exp\nlocal stratum 1\nallow 0/0\n### rp-exp-end\n' \
+    | sudo tee -a /etc/chrony/chrony.conf > /dev/null
   sudo systemctl restart chrony
   echo "  [setup] chronyd NTP 서버 시작됨  $(date '+%H:%M:%S')"
 }
