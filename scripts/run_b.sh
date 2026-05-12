@@ -96,7 +96,7 @@ esac
 (
   while true; do
     grep " ${NIC}:" /proc/net/dev \
-      | awk -v t="$(date +%s%3N)" '{print t, $2, $10}'
+      | awk -v t="$(date +%s%3N)" '{print t, $2}'
     sleep 1
   done
 ) > "${OUTDIR}/netdev.log" &
