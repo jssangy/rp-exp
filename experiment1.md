@@ -123,81 +123,50 @@ sudo ptp4l -i eth0 2>&1 | grep "master offset"
 
 [Laptop B]
 3. Observer 도구 실행 (백그라운드)        ← baseline이면 skip
-   ros2probe는 DDS participant 생성 전에 실행해야 discovery 단계부터 프로빙 가능
+   - ros2 topic hz, ros2 bag record, rp topic hz, rp bag record
+   - rp run은 DDS participant 생성 전(discovery 단계)부터 프로빙해야 하므로
+     publisher보다 먼저 실행
 
 [Laptop A]
-4. Publisher 실행 (무한 루프)
+4. Publisher 실행 (WiFi 동기화 신호 수신 후)
 
 [Laptop B]
-5. /proc/net/dev 샘플링 시작 (1초 간격, 백그라운드)
-6. Subscriber 실행
+5. Subscriber 백그라운드 실행
    → 내부 10s warm-up 자동 시작 (DDS discovery + observer 연결 대기)
+6. 10s warm-up 대기 후 /proc/net/dev 샘플링 시작 (1초 간격, 백그라운드)
    → t=10s: 측정 창 시작 (자동)
-   → t=70s: FINAL 출력 후 자동 종료
+   → t=70s: FINAL 출력 후 subscriber 자동 종료
 
 [완료]
 7. Subscriber 프로세스 종료 확인 → run 완료
-8. 백그라운드 프로세스 종료 (observer 도구, netdev 샘플링)
-   Publisher는 시나리오 내 모든 조건 종료 후 재시작 없이 다음 run에 재사용
+8. 백그라운드 프로세스 종료 (netdev 샘플링, observer 도구, publisher)
+   - WiFi 동기화: B → A "STOP" 신호 → A publisher 종료
 9. 결과 저장 (sub.log, netdev.log, obs.log)
 10. 10s 대기 후 다음 run
 ```
 
-### 6.1 run 자동화 스크립트 (Laptop B)
+### 6.1 실행 명령
 
 ```bash
-#!/bin/bash
-# usage: ./run.sh <scenario> <condition> <run_id> <topic> <sub_node>
-# e.g.:  ./run.sh S3b rosbag2 01 /points s3_points_sub
+# Laptop A
+./scripts/run_exp1_pub.sh --sync <Laptop-B-wlan-IP>
 
-SCENARIO=$1
-CONDITION=$2
-RUN=$3
-TOPIC=$4
-SUB_NODE=$5
-
-OUTDIR=results/exp1/${SCENARIO}/${CONDITION}/run${RUN}
-mkdir -p ${OUTDIR}
-
-# Step 3: observer 도구
-case ${CONDITION} in
-  topic_hz) ros2 topic hz ${TOPIC}                    > ${OUTDIR}/obs.log 2>&1 & OBS_PID=$! ;;
-  rosbag2)  ros2 bag record ${TOPIC} -o ${OUTDIR}/bag > ${OUTDIR}/obs.log 2>&1 & OBS_PID=$! ;;
-  rp_hz)    rp topic hz ${TOPIC}                      > ${OUTDIR}/obs.log 2>&1 & OBS_PID=$! ;;
-  rp_bag)   rp bag record ${TOPIC} -o ${OUTDIR}/bag   > ${OUTDIR}/obs.log 2>&1 & OBS_PID=$! ;;
-  baseline) ;;
-esac
-
-# Step 5: netdev 샘플링
-( while true; do
-    grep " eth0:" /proc/net/dev | awk -v t="$(date +%s)" '{print t, $2, $10}'
-    sleep 1
-  done ) > ${OUTDIR}/netdev.log &
-NETDEV_PID=$!
-
-# Step 6: subscriber (70s 후 자동 종료)
-ros2 run test ${SUB_NODE} 2>&1 | tee ${OUTDIR}/sub.log
-
-# Step 8: 정리
-[ -n "${OBS_PID}" ] && kill ${OBS_PID} 2>/dev/null
-kill ${NETDEV_PID} 2>/dev/null
-
-sleep 10
+# Laptop B
+./scripts/run_exp1_sub.sh --sync <Laptop-A-wlan-IP>
 ```
 
-### 6.2 시나리오별 인수
+`scripts/run_b.sh` — 단일 run 자동화 (run_exp1_sub.sh가 호출):
 
-| 시나리오 | TOPIC | SUB_NODE |
-|---|---|---|
-| S1 | /cmd_vel | s1_sub |
-| S2 | /imu | s2_sub |
-| S3-a | /scan | s3a_sub |
-| S3-b | /points | s3_points_sub |
-| S3-c | /points | s3_points_sub |
-| S4-a | /image_raw/compressed | s4a_sub |
-| S4-b | /depth/image_raw | s4_image_sub |
-| S5-a | /image_raw/compressed | s5a_sub |
-| S5-b | /points | s5b_sub |
+```bash
+# Step 3: observer 실행 (rp run은 pub보다 먼저 실행)
+# Step 4: WiFi로 A에 "START <scenario>" → A pub 시작 → "READY" 수신
+# Step 5: subscriber 백그라운드 실행
+# Step 6: 10s 후 netdev 샘플링 시작
+#         subscriber 60s 측정 후 자동 종료
+# Step 7: subscriber 종료 확인
+# Step 8: A에 "STOP" → A pub 종료, observer/netdev 정리
+# Step 9: 10s 대기
+```
 
 ---
 
