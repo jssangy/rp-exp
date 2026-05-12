@@ -179,18 +179,17 @@ pkill -SIGTERM -f "ros2 run"    2>/dev/null || true
 pkill -SIGTERM -f "ros2 launch" 2>/dev/null || true
 pkill -SIGTERM -f "ros2 topic"  2>/dev/null || true
 pkill -SIGTERM -f "ros2 bag"    2>/dev/null || true
-sudo pkill -SIGTERM -f "rp run" 2>/dev/null || true
 pkill -SIGTERM -f "rp topic"    2>/dev/null || true
 pkill -SIGTERM -f "rp bag"      2>/dev/null || true
+[[ -n "${RP_PID}" ]] && sudo pkill -SIGTERM -f "rp run" 2>/dev/null || true
 sleep 2
-# SIGTERM 후에도 살아있는 프로세스는 SIGKILL
 pkill -SIGKILL -f "ros2 run"    2>/dev/null || true
 pkill -SIGKILL -f "ros2 launch" 2>/dev/null || true
 pkill -SIGKILL -f "ros2 topic"  2>/dev/null || true
 pkill -SIGKILL -f "ros2 bag"    2>/dev/null || true
-sudo pkill -SIGKILL -f "rp run" 2>/dev/null || true
 pkill -SIGKILL -f "rp topic"    2>/dev/null || true
 pkill -SIGKILL -f "rp bag"      2>/dev/null || true
+[[ -n "${RP_PID}" ]] && sudo pkill -SIGKILL -f "rp run" 2>/dev/null || true
 ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"
