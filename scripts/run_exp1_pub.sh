@@ -67,13 +67,10 @@ PUB_PID=""
 stop_current() {
   if [[ -n "${PUB_PID}" ]]; then
     echo "[pub] 종료 (PID ${PUB_PID})  $(date '+%H:%M:%S')"
-    # ros2 run/launch 먼저 종료 → pub_a.sh(bash)가 포그라운드 명령 대기에서 풀림
-    pkill -SIGTERM -f "ros2 run test .*pub"    2>/dev/null || true
-    pkill -SIGTERM -f "ros2 launch test .*pub" 2>/dev/null || true
+    # setsid로 시작된 프로세스 그룹 전체 kill (ros2 run Python + C++ 노드 바이너리 모두)
+    kill -SIGTERM -- "-${PUB_PID}" 2>/dev/null || true
     sleep 1
-    pkill -SIGKILL -f "ros2 run test .*pub"    2>/dev/null || true
-    pkill -SIGKILL -f "ros2 launch test .*pub" 2>/dev/null || true
-    kill "${PUB_PID}" 2>/dev/null || true
+    kill -SIGKILL -- "-${PUB_PID}" 2>/dev/null || true
     wait "${PUB_PID}" 2>/dev/null || true
     PUB_PID=""
   fi
@@ -108,7 +105,7 @@ run_event_driven() {
         stop_current
         echo ""
         echo "  [$(date '+%H:%M:%S')] ${SCENARIO} publisher 시작"
-        bash "${SCRIPT_DIR}/pub_a.sh" "${SCENARIO}" &
+        setsid bash "${SCRIPT_DIR}/pub_a.sh" "${SCENARIO}" &
         PUB_PID=$!
         sleep 1  # pub 초기화 대기
         echo "READY" | nc -w5 "${SYNC_HOST}" "${SYNC_ACK_PORT}" 2>/dev/null || true
@@ -165,7 +162,7 @@ run_timer_based() {
     echo " [$(date '+%H:%M:%S')] 시나리오: ${SCENARIO}"
     echo "════════════════════════════════════════"
 
-    bash "${SCRIPT_DIR}/pub_a.sh" "${SCENARIO}" &
+    setsid bash "${SCRIPT_DIR}/pub_a.sh" "${SCENARIO}" &
     PUB_PID=$!
     echo "[pub] 시작 (PID ${PUB_PID})"
 
