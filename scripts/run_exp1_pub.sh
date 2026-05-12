@@ -44,6 +44,23 @@ set -u
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
+PTP_NIC=${PTP_NIC:-$(ip link show | awk -F': ' '/^[0-9]+: e/{print $2; exit}')}
+
+# ── 환경 설정 (CPU governor, PTP master) ─────────────────────────────────────
+setup_env() {
+  echo "[setup] CPU governor → performance"
+  sudo cpupower frequency-set -g performance 2>/dev/null \
+    || echo "  [warn] cpupower 실패 (무시)"
+
+  echo "[setup] PTP 기존 프로세스 정리..."
+  sudo pkill ptp4l 2>/dev/null || true
+  sleep 1
+
+  echo "[setup] ptp4l master 시작 (NIC=${PTP_NIC})..."
+  sudo ptp4l -i "${PTP_NIC}" -m --slave_only 0 > /tmp/ptp4l_master.log 2>&1 &
+  echo "  [setup] ptp4l master 시작됨  $(date '+%H:%M:%S')"
+}
+
 # ── Publisher 제어 ────────────────────────────────────────────────────────────
 
 PUB_PID=""
@@ -72,6 +89,10 @@ run_event_driven() {
   echo " B wlan IP : ${SYNC_HOST}"
   echo " 수신 포트 : ${SYNC_PORT}  응답 포트: ${SYNC_ACK_PORT}"
   echo "════════════════════════════════════════════════"
+  echo ""
+
+  setup_env
+
   echo ""
   echo " B의 명령을 대기합니다. Laptop B에서 run_exp1_sub.sh 실행 후"
   echo " 양쪽 동시에 Enter를 눌러 시작하세요."
@@ -129,6 +150,10 @@ run_timer_based() {
   echo " 시나리오당: ${SCENARIO_WAIT}s"
   echo " 예상시간  : ${TOTAL_H}h ${TOTAL_M}m"
   echo "════════════════════════════════════════════════"
+  echo ""
+
+  setup_env
+
   echo ""
   echo " Laptop B에서 run_exp1_sub.sh 를 실행하고"
   echo " 양쪽 동시에 Enter를 눌러 시작하세요."

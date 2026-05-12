@@ -44,10 +44,44 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
+# PTP용 유선 NIC (기본: 이름이 e로 시작하는 첫 번째 인터페이스)
+PTP_NIC=${PTP_NIC:-$(ip link show | awk -F': ' '/^[0-9]+: e/{print $2; exit}')}
 export NIC
 export SYNC_HOST
 export SYNC_PORT
 export SYNC_ACK_PORT
+
+# ── 환경 설정 (CPU governor, PTP slave) ──────────────────────────────────────
+setup_env() {
+  echo "[setup] CPU governor → performance"
+  sudo cpupower frequency-set -g performance 2>/dev/null \
+    || echo "  [warn] cpupower 실패 (무시)"
+
+  echo "[setup] PTP 기존 프로세스 정리..."
+  sudo pkill ptp4l   2>/dev/null || true
+  sudo pkill phc2sys 2>/dev/null || true
+  sleep 1
+
+  echo "[setup] ptp4l slave 시작 (NIC=${PTP_NIC})..."
+  sudo ptp4l -i "${PTP_NIC}" -s -m > /tmp/ptp4l_slave.log 2>&1 &
+  sleep 2
+  echo "[setup] phc2sys 시작..."
+  sudo phc2sys -s "${PTP_NIC}" -w -m > /tmp/phc2sys.log 2>&1 &
+
+  echo "[setup] PTP 수렴 대기 (목표: offset < 1ms)..."
+  local offset=""
+  for i in $(seq 1 60); do
+    offset=$(awk '/master offset/{val=$4; print (val<0)?-val:val}' /tmp/ptp4l_slave.log 2>/dev/null | tail -1)
+    if [[ -n "${offset}" ]] && (( offset < 1000000 )); then
+      echo "  [setup] PTP 수렴 완료 (offset=${offset} ns)  $(date '+%H:%M:%S')"
+      return 0
+    fi
+    printf "\r  대기 중... %2ds  offset=%s ns     " "${i}" "${offset:-?}"
+    sleep 1
+  done
+  echo ""
+  echo "  [warn] PTP 60s 내 수렴 실패 — 실험 계속 진행"
+}
 
 # 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
 SECS_PER_RUN=84
@@ -69,9 +103,12 @@ else
 fi
 echo "════════════════════════════════════════════════"
 echo ""
+
+setup_env
+
+echo ""
 echo "사전 확인:"
-echo "  1) PTP 동기화 offset < ±1μs"
-echo "  2) Laptop A에서 run_exp1_pub.sh 실행 후 대기 중"
+echo "  1) Laptop A에서 run_exp1_pub.sh 실행 후 대기 중"
 echo ""
 read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
 
