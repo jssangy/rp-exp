@@ -69,7 +69,7 @@ case ${CONDITION} in
     ;;
   rosbag2)
     mkdir -p "${BAGDIR}"
-    ros2 bag record ${BAG_TOPICS} --storage mcap -o "${BAGDIR}/bag" > "${OUTDIR}/obs.log" 2>&1 &
+    ros2 bag record ${BAG_TOPICS} --storage mcap -o "${BAGDIR}/rosbag2" > "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_hz)
@@ -82,7 +82,7 @@ case ${CONDITION} in
     mkdir -p "${BAGDIR}"
     rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
-    rp bag record ${BAG_TOPICS} -o "${BAGDIR}/bag" >> "${OUTDIR}/obs.log" 2>&1 &
+    rp bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   baseline)
