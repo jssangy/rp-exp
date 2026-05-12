@@ -100,6 +100,10 @@ stop_current() {
     echo "[pub] 종료 (PID ${PUB_PID})  $(date '+%H:%M:%S')"
     kill "${PUB_PID}" 2>/dev/null || true
     wait "${PUB_PID}" 2>/dev/null || true
+    # pub_a.sh가 SIGTERM으로 종료될 때 cleanup trap이 실행 안 될 수 있으므로 직접 정리
+    pkill -f "ros2 run test .*pub" 2>/dev/null || true
+    pkill -f "ros2 launch test .*pub" 2>/dev/null || true
+    sleep 1
     PUB_PID=""
   fi
 }

@@ -26,7 +26,7 @@ cleanup() {
   pkill -f "ros2 launch test .*pub" 2>/dev/null || true
   sleep 1
 }
-trap cleanup EXIT
+trap cleanup EXIT TERM INT
 
 echo "[pub_a] ${SCENARIO} publisher 시작"
 
