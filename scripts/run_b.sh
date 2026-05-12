@@ -40,6 +40,8 @@ SYNC_HOST=${SYNC_HOST:-""}
 SYNC_PORT=${SYNC_PORT:-55001}
 SYNC_ACK_PORT=${SYNC_ACK_PORT:-55002}
 
+CLK_TCK=$(getconf CLK_TCK)
+
 # 시나리오별 설정
 case ${SCENARIO} in
   S1)  SUB_NODE="s1_sub";        TOPIC="/cmd_vel" ;;
@@ -114,8 +116,10 @@ fi
 ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
 SUB_PID=$!
 
-# ── Step 4: warmup 대기 후 /proc/net/dev 샘플링 시작 ─────────────────────────
+# ── Step 4: warmup 대기 후 netdev + CPU/메모리 샘플링 시작 ───────────────────
 sleep 10
+
+# /proc/net/dev 샘플링
 (
   while true; do
     grep " ${NIC}:" /proc/net/dev \
@@ -124,6 +128,46 @@ sleep 10
   done
 ) > "${OUTDIR}/netdev.log" &
 NETDEV_PID=$!
+
+# CPU/메모리 샘플링 (observer PID가 있을 때만)
+# 출력: timestamp_ms  label  cpu%  rss_kb
+# CPU%: /proc/<pid>/stat (utime+stime 델타), 메모리: /proc/<pid>/status (VmRSS)
+CPU_MEM_PID=""
+if [[ -n "${RP_PID}" || -n "${OBS_PID}" ]]; then
+  (
+    declare -A prev_ticks
+    declare -A labels
+
+    if [[ -n "${RP_PID}" ]]; then
+      prev_ticks[${RP_PID}]=$(awk '{print $14+$15}' /proc/${RP_PID}/stat 2>/dev/null || echo 0)
+      labels[${RP_PID}]="rp_run"
+    fi
+    if [[ -n "${OBS_PID}" ]]; then
+      prev_ticks[${OBS_PID}]=$(awk '{print $14+$15}' /proc/${OBS_PID}/stat 2>/dev/null || echo 0)
+      labels[${OBS_PID}]="${CONDITION}"
+    fi
+    prev_t=$(date +%s%3N)
+
+    while true; do
+      sleep 1
+      curr_t=$(date +%s%3N)
+      elapsed_ms=$(( curr_t - prev_t ))
+      [[ ${elapsed_ms} -le 0 ]] && elapsed_ms=1
+
+      for pid in "${!labels[@]}"; do
+        [[ -d /proc/${pid} ]] || continue
+        curr_ticks=$(awk '{print $14+$15}' /proc/${pid}/stat 2>/dev/null || echo 0)
+        delta=$(( curr_ticks - prev_ticks[${pid}] ))
+        cpu_pct=$(awk "BEGIN {printf \"%.1f\", ${delta} * 100000 / (${CLK_TCK} * ${elapsed_ms})}")
+        rss_kb=$(grep -m1 VmRSS /proc/${pid}/status 2>/dev/null | awk '{print $2}' || echo 0)
+        echo "${curr_t} ${labels[${pid}]} ${cpu_pct} ${rss_kb}"
+        prev_ticks[${pid}]=${curr_ticks}
+      done
+      prev_t=${curr_t}
+    done
+  ) > "${OUTDIR}/cpu_mem.log" &
+  CPU_MEM_PID=$!
+fi
 
 # ── Step 5: subscriber 종료 대기 (60s 측정 후 자동 종료) ──────────────────────
 wait "${SUB_PID}" 2>/dev/null || true
@@ -135,8 +179,9 @@ if [[ -n "${SYNC_HOST}" ]]; then
 fi
 
 # ── Step 7: 백그라운드 프로세스 정리 ─────────────────────────────────────────
-[[ -n "${OBS_PID}" ]] && kill "${OBS_PID}" 2>/dev/null || true
-[[ -n "${RP_PID}"  ]] && kill "${RP_PID}"  2>/dev/null || true
+[[ -n "${OBS_PID}"     ]] && kill "${OBS_PID}"     2>/dev/null || true
+[[ -n "${RP_PID}"      ]] && kill "${RP_PID}"       2>/dev/null || true
+[[ -n "${CPU_MEM_PID}" ]] && kill "${CPU_MEM_PID}"  2>/dev/null || true
 kill "${NETDEV_PID}" 2>/dev/null || true
 wait 2>/dev/null || true
 
