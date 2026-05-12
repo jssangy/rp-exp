@@ -76,6 +76,8 @@ S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz) + /camera/front/c
 | ΔRX (bytes/s) | `/proc/net/dev` 1초 간격 샘플링, 60s 측정 창 평균 | Laptop B NIC |
 | 메시지 드롭률 | subscriber 60s 수신 카운트 vs expected(Hz×60) | Laptop B |
 | E2E latency p50/p95/p99 | header.stamp 기반, 측정 창 동안 메시지마다 sub.log에 기록 후 후처리, PTP 동기화 전제 | Laptop B subscriber 내장 |
+| CPU 사용률 (%) | `/proc/<pid>/stat` 1초 간격 샘플링, observer PID 대상 | Laptop B observer 프로세스 |
+| 메모리 RSS (KB) | `/proc/<pid>/status` VmRSS 1초 간격 샘플링 | Laptop B observer 프로세스 |
 
 ---
 
@@ -141,7 +143,7 @@ sudo ptp4l -i eth0 2>&1 | grep "master offset"
 7. Subscriber 프로세스 종료 확인 → run 완료
 8. 백그라운드 프로세스 종료 (netdev 샘플링, observer 도구, publisher)
    - WiFi 동기화: B → A "STOP" 신호 → A publisher 종료
-9. 결과 저장 (sub.log, netdev.log, obs.log)
+9. 결과 저장 (sub.log, netdev.log, obs.log, cpu_mem.log)
 10. 10s 대기 후 다음 run
 ```
 
@@ -176,27 +178,28 @@ sudo ptp4l -i eth0 2>&1 | grep "master offset"
 results/exp1/
 ├── S1/
 │   ├── baseline/   run01~10/ (sub.log, netdev.log)
-│   ├── topic_hz/   run01~10/
-│   ├── rosbag2/    run01~10/ (sub.log, netdev.log, obs.log, bag/)
-│   ├── rp_hz/      run01~10/
-│   └── rp_bag/     run01~10/
-├── S2/
-├── S3a/
-├── S3b/
-├── S3c/
-├── S4a/
-├── S4b/
-├── S5a/
+│   ├── topic_hz/   run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
+│   ├── rosbag2/    run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
+│   ├── rp_hz/      run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
+│   └── rp_bag/     run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
+├── S2/ ...
 └── S5b/
+
+bags/exp1/
+├── S1/
+│   ├── rosbag2/    run01~10/ rosbag2/ (mcap)
+│   └── rp_bag/     run01~10/ rp/ (mcap)
+└── ...
 ```
 
 ### 7.1 로그 파일 설명
 
 | 파일 | 내용 |
 |---|---|
-| sub.log | subscriber stdout: 5s 창 latency avg/max, FINAL 드롭률 |
-| netdev.log | 1초 간격 NIC rx/tx bytes (timestamp rx_bytes tx_bytes) |
-| obs.log | observer 도구 stdout |
+| sub.log | subscriber stdout: `LAT <ms>` per message + `FINAL` 드롭률 |
+| netdev.log | 1초 간격 NIC rx_bytes (`timestamp_ms rx_bytes`) |
+| obs.log | observer 도구 stdout/stderr |
+| cpu_mem.log | observer PID별 1초 간격 CPU%·RSS (`timestamp_ms label cpu% rss_kb`) |
 
 ---
 
@@ -237,5 +240,29 @@ print(f'p50 = {vals[int(n*0.50)]:.3f} ms')
 print(f'p95 = {vals[int(n*0.95)]:.3f} ms')
 print(f'p99 = {vals[int(n*0.99)]:.3f} ms')
 print(f'max = {vals[-1]:.3f} ms')
+"
+```
+
+### 8.4 CPU / 메모리
+
+```
+cpu_mem.log 컬럼: timestamp_ms  label  cpu%  rss_kb
+
+# rp 조건: rp_run + rp_hz(또는 rp_bag) 합산
+# ros2 조건: topic_hz 또는 rosbag2 단일 프로세스
+
+# Python으로 평균·최대 계산
+python3 -c "
+import collections, sys
+data = collections.defaultdict(list)
+for line in open('cpu_mem.log'):
+    t, label, cpu, rss = line.split()
+    data[label].append((float(cpu), int(rss)))
+
+for label, vals in sorted(data.items()):
+    cpus = [v[0] for v in vals]
+    rsss = [v[1] for v in vals]
+    print(f'{label}: cpu avg={sum(cpus)/len(cpus):.1f}% max={max(cpus):.1f}%  '
+          f'rss avg={sum(rsss)/len(rsss):.0f}KB max={max(rsss):.0f}KB')
 "
 ```
