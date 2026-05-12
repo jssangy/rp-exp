@@ -83,7 +83,7 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rp_hz)
-    sudo rp run > "${OUTDIR}/obs.log" 2>&1 &
+    rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
     sleep 1  # rp run이 소켓을 열 때까지 대기
     rp topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
@@ -91,7 +91,7 @@ case ${CONDITION} in
     ;;
   rp_bag)
     mkdir -p "${BAGDIR}"
-    sudo rp run > "${OUTDIR}/obs.log" 2>&1 &
+    rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
     sleep 1  # rp run이 소켓을 열 때까지 대기
     rp bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
@@ -181,7 +181,7 @@ pkill -SIGTERM -f "ros2 topic"  2>/dev/null || true
 pkill -SIGTERM -f "ros2 bag"    2>/dev/null || true
 pkill -SIGTERM -f "rp topic"    2>/dev/null || true
 pkill -SIGTERM -f "rp bag"      2>/dev/null || true
-[[ -n "${RP_PID}" ]] && sudo pkill -SIGTERM -f "rp run" 2>/dev/null || true
+pkill -SIGTERM -f "rp run"      2>/dev/null || true
 sleep 2
 pkill -SIGKILL -f "ros2 run"    2>/dev/null || true
 pkill -SIGKILL -f "ros2 launch" 2>/dev/null || true
@@ -189,7 +189,7 @@ pkill -SIGKILL -f "ros2 topic"  2>/dev/null || true
 pkill -SIGKILL -f "ros2 bag"    2>/dev/null || true
 pkill -SIGKILL -f "rp topic"    2>/dev/null || true
 pkill -SIGKILL -f "rp bag"      2>/dev/null || true
-[[ -n "${RP_PID}" ]] && sudo pkill -SIGKILL -f "rp run" 2>/dev/null || true
+pkill -SIGKILL -f "rp run"      2>/dev/null || true
 ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"
