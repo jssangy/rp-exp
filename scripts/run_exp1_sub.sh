@@ -69,15 +69,26 @@ setup_env() {
   if [[ -n "${phc_dev}" ]]; then
     echo "[setup] ptp4l slave 시작 (NIC=${PTP_NIC}, HW timestamp)..."
     sudo ptp4l -i "${PTP_NIC}" -s -m > /tmp/ptp4l_slave.log 2>&1 &
-    sleep 2
-    echo "[setup] phc2sys 시작 (PHC → 시스템 클록)..."
-    sudo phc2sys -s "${PTP_NIC}" -c CLOCK_REALTIME -m > /tmp/phc2sys.log 2>&1 &
-    # 시스템 클록 offset 확인 (phc2sys 로그)
-    _wait_ptp_converge /tmp/phc2sys.log "phc offset"
+    sleep 3
+    # HW 모드에서 10s 안에 master가 안 잡히면 SW 모드로 재시도
+    local early_offset
+    early_offset=$(awk '/master offset/ {for(i=1;i<=NF;i++) if($i=="offset") {print $(i+1); break}}' \
+                   /tmp/ptp4l_slave.log 2>/dev/null | tail -1)
+    if [[ -z "${early_offset}" ]]; then
+      echo "  [setup] HW 모드 master 미감지 → SW timestamp 모드로 재시도..."
+      sudo pkill ptp4l 2>/dev/null || true
+      sudo pkill phc2sys 2>/dev/null || true
+      sleep 1
+      sudo ptp4l -i "${PTP_NIC}" -s -m -S > /tmp/ptp4l_slave.log 2>&1 &
+      _wait_ptp_converge /tmp/ptp4l_slave.log "master offset"
+    else
+      echo "[setup] phc2sys 시작 (PHC → 시스템 클록)..."
+      sudo phc2sys -s "${PTP_NIC}" -c CLOCK_REALTIME -m > /tmp/phc2sys.log 2>&1 &
+      _wait_ptp_converge /tmp/phc2sys.log "phc offset"
+    fi
   else
     echo "[setup] PHC 없음 → SW timestamp 모드"
     sudo ptp4l -i "${PTP_NIC}" -s -m -S > /tmp/ptp4l_slave.log 2>&1 &
-    # -S 모드: ptp4l이 CLOCK_REALTIME 직접 제어, phc2sys 불필요
     _wait_ptp_converge /tmp/ptp4l_slave.log "master offset"
   fi
 }
@@ -88,8 +99,9 @@ _wait_ptp_converge() {
   local offset="" abs_offset=""
   echo "[setup] PTP 수렴 대기 (목표: |offset| < 1ms)..."
   for i in $(seq 1 120); do
-    offset=$(grep "${pattern}" "${logfile}" 2>/dev/null | tail -1 \
-             | grep -oP '(?<=offset\s{0,8})-?\d+' || true)
+    # "offset" 다음 단어를 추출 (awk로 lookbehind 없이 처리)
+    offset=$(awk "/${pattern}/ {for(i=1;i<=NF;i++) if(\$i==\"offset\") {print \$(i+1); break}}" \
+             "${logfile}" 2>/dev/null | tail -1)
     if [[ -n "${offset}" ]]; then
       abs_offset=$(( offset < 0 ? -offset : offset ))
       printf "\r  대기 중... %3ds  offset=%d ns      " "${i}" "${offset}"
@@ -105,8 +117,9 @@ _wait_ptp_converge() {
   done
   echo ""
   echo "  [warn] PTP 120s 내 수렴 실패 (offset=${offset:-?} ns)"
-  echo "  [hint] 확인: sudo tcpdump -i ${PTP_NIC} udp port 319 or port 320"
-  echo "  [hint] A가 먼저 실행됐는지 확인. 계속 진행합니다..."
+  echo "  [hint] sudo tcpdump -i ${PTP_NIC} udp port 319 or port 320  으로 PTP 패킷 확인"
+  echo "  [hint] 방화벽: sudo ufw allow 319/udp && sudo ufw allow 320/udp"
+  echo "  계속 진행합니다..."
 }
 
 # 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
