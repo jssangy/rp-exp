@@ -80,7 +80,7 @@ setup_env() {
   local offset_sec abs_offset_ms
   for i in $(seq 1 60); do
     offset_sec=$(chronyc tracking 2>/dev/null \
-                 | awk '/Last offset/{print $3}')
+                 | awk '/Last offset/{print $4}')
     if [[ -n "${offset_sec}" ]]; then
       abs_offset_ms=$(awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; printf \"%.3f\", v*1000}")
       printf "\r  대기 중... %2ds  offset=%s ms      " "${i}" "${abs_offset_ms}"
