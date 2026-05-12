@@ -108,7 +108,7 @@ esac
 if [[ -n "${SYNC_HOST}" ]]; then
   echo "  [sync] START ${SCENARIO} 전송..."
   echo "START ${SCENARIO}" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
-  nc -l -w30 -p "${SYNC_ACK_PORT}" > /dev/null 2>&1 || true
+  timeout 30 nc -l -p "${SYNC_ACK_PORT}" > /dev/null 2>&1 || true
   echo "  [sync] Publisher 준비 완료  $(date '+%H:%M:%S')"
 else
   echo "  [warn] SYNC_HOST 미설정 — publisher가 이미 실행 중이어야 함"
