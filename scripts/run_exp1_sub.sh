@@ -82,9 +82,9 @@ setup_env() {
     offset_sec=$(chronyc tracking 2>/dev/null \
                  | awk '/Last offset/{print $3}')
     if [[ -n "${offset_sec}" ]]; then
-      abs_offset_ms=$(awk "BEGIN{v=${offset_sec}; if(v<0)v=-v; printf \"%.3f\", v*1000}")
+      abs_offset_ms=$(awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; printf \"%.3f\", v*1000}")
       printf "\r  대기 중... %2ds  offset=%s ms      " "${i}" "${abs_offset_ms}"
-      if awk "BEGIN{exit !(${offset_sec#-} < 0.001)}"; then
+      if awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; exit !(v < 0.001)}"; then
         echo ""
         echo "  [setup] 클록 동기화 완료 (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
         return 0
