@@ -2,7 +2,7 @@
 # Laptop A — Experiment 1 publisher 자동 관리
 #
 # 사용법:
-#   ./scripts/run_exp1_pub.sh --sync <Laptop-B-wlan-IP>   # 이벤트 기반 (권장)
+#   ./scripts/run_exp1_pub.sh --sync <Laptop-B-IP>   # 이벤트 기반 (권장)
 #   ./scripts/run_exp1_pub.sh                             # 타이머 기반 (레거시)
 #
 # 이벤트 기반 (--sync):

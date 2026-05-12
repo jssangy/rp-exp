@@ -2,13 +2,14 @@
 # Laptop B — Experiment 1 전체 자동 실행
 #
 # 사용법:
-#   ./scripts/run_exp1_sub.sh --sync <Laptop-A-wlan-IP>   # 이벤트 기반 (권장)
-#   ./scripts/run_exp1_sub.sh                             # 타이머 기반 (레거시)
+#   ./scripts/run_exp1_sub.sh --sync <Laptop-A-IP>   # 이벤트 기반 (권장)
+#   ./scripts/run_exp1_sub.sh                        # 타이머 기반 (레거시)
 #
 # 이벤트 기반: run마다 A에 START/STOP 전송 → pub 생명주기 정밀 제어
 # 타이머 기반: SCENARIO_WAIT 동안 대기 (--sync 없을 때)
 #
-# 주의: --sync 통신은 WiFi(wlan0) 경유 — eth0 ΔRX 오염 없음
+# --sync IP는 ethernet 또는 WiFi 모두 사용 가능
+# chrony 서버도 동일 IP 사용 (CHRONY_SERVER 환경변수로 오버라이드 가능)
 
 set -euo pipefail
 
