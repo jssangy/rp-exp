@@ -64,9 +64,9 @@ setup_env() {
   fi
 
   echo "[setup] chrony NTP 클라이언트 설정 (서버: ${CHRONY_SERVER})..."
-  sudo sed -i '/### rp-exp/,/### rp-exp-end/d' /etc/chrony/chrony.conf
-  printf '### rp-exp\nserver %s iburst\n### rp-exp-end\n' "${CHRONY_SERVER}" \
-    | sudo tee -a /etc/chrony/chrony.conf > /dev/null
+  # chrony.conf 직접 수정 대신 drop-in 파일 사용
+  echo "server ${CHRONY_SERVER} iburst" \
+    | sudo tee /etc/chrony/sources.d/rp-exp.sources > /dev/null
   sudo systemctl restart chrony
   sleep 2
 
