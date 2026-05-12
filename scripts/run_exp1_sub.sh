@@ -64,10 +64,13 @@ setup_env() {
   fi
 
   echo "[setup] chrony NTP 클라이언트 설정 (서버: ${CHRONY_SERVER})..."
-  # chrony.conf 직접 수정 대신 drop-in 파일 사용
-  echo "server ${CHRONY_SERVER} iburst" \
-    | sudo tee /etc/chrony/sources.d/rp-exp.sources > /dev/null
-  sudo systemctl restart chrony
+  # 기존 drop-in 파일 제거 (이전 실행 잔재)
+  sudo rm -f /etc/chrony/conf.d/rp-exp.conf /etc/chrony/sources.d/rp-exp.sources
+  # chrony 정상 기동 확인 후 런타임으로 서버 추가 (재시작 불필요)
+  sudo systemctl is-active chrony > /dev/null 2>&1 || sudo systemctl start chrony
+  sleep 1
+  sudo chronyc add server "${CHRONY_SERVER}" iburst > /dev/null 2>&1 || true
+  sudo chronyc reload sources > /dev/null 2>&1 || true
   sleep 2
 
   # 즉시 스텝 동기화

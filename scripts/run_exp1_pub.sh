@@ -51,11 +51,13 @@ setup_env() {
     || echo "  [warn] cpupower 실패 (무시)"
 
   echo "[setup] chrony NTP 서버 설정..."
-  # drop-in 파일 사용 (chrony.conf 직접 수정 안 함)
-  printf 'local stratum 1\nallow 0/0\n' \
-    | sudo tee /etc/chrony/conf.d/rp-exp.conf > /dev/null
-  sudo systemctl restart chrony
-  echo "  [setup] chronyd NTP 서버 시작됨  $(date '+%H:%M:%S')"
+  # 기존 drop-in 파일 제거 (이전 실행 잔재)
+  sudo rm -f /etc/chrony/conf.d/rp-exp.conf /etc/chrony/sources.d/rp-exp.sources
+  # chrony 정상 기동 확인 후 런타임으로 allow 설정 (재시작 불필요)
+  sudo systemctl is-active chrony > /dev/null 2>&1 || sudo systemctl start chrony
+  sleep 1
+  sudo chronyc allow 0/0 > /dev/null 2>&1 || true
+  echo "  [setup] chrony NTP 서버 시작됨  $(date '+%H:%M:%S')"
 }
 
 # ── Publisher 제어 ────────────────────────────────────────────────────────────
