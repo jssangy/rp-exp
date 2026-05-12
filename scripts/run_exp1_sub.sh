@@ -44,82 +44,54 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
-# PTP용 유선 NIC (기본: 이름이 e로 시작하는 첫 번째 인터페이스)
-PTP_NIC=${PTP_NIC:-$(ip link show | awk -F': ' '/^[0-9]+: e/{print $2; exit}')}
+# chrony 서버 IP (기본: SYNC_HOST, 오버라이드 가능)
+CHRONY_SERVER=${CHRONY_SERVER:-${SYNC_HOST}}
 export NIC
 export SYNC_HOST
 export SYNC_PORT
 export SYNC_ACK_PORT
 
-# ── 환경 설정 (CPU governor, PTP slave) ──────────────────────────────────────
+# ── 환경 설정 (CPU governor, chrony NTP 클라이언트) ──────────────────────────
 setup_env() {
   echo "[setup] CPU governor → performance"
   sudo cpupower frequency-set -g performance 2>/dev/null \
     || echo "  [warn] cpupower 실패 (무시)"
 
-  echo "[setup] PTP 기존 프로세스 정리..."
-  sudo pkill ptp4l   2>/dev/null || true
-  sudo pkill phc2sys 2>/dev/null || true
-  sleep 1
-
-  # PHC(하드웨어 클록) 존재 여부 확인
-  local phc_dev
-  phc_dev=$(ls /dev/ptp* 2>/dev/null | head -1 || true)
-
-  if [[ -n "${phc_dev}" ]]; then
-    echo "[setup] ptp4l slave 시작 (NIC=${PTP_NIC}, HW timestamp)..."
-    sudo ptp4l -i "${PTP_NIC}" -s -m > /tmp/ptp4l_slave.log 2>&1 &
-    sleep 3
-    # HW 모드에서 10s 안에 master가 안 잡히면 SW 모드로 재시도
-    local early_offset
-    early_offset=$(awk '/master offset/ {for(i=1;i<=NF;i++) if($i=="offset") {print $(i+1); break}}' \
-                   /tmp/ptp4l_slave.log 2>/dev/null | tail -1)
-    if [[ -z "${early_offset}" ]]; then
-      echo "  [setup] HW 모드 master 미감지 → SW timestamp 모드로 재시도..."
-      sudo pkill ptp4l 2>/dev/null || true
-      sudo pkill phc2sys 2>/dev/null || true
-      sleep 1
-      sudo ptp4l -i "${PTP_NIC}" -s -m -S > /tmp/ptp4l_slave.log 2>&1 &
-      _wait_ptp_converge /tmp/ptp4l_slave.log "master offset"
-    else
-      echo "[setup] phc2sys 시작 (PHC → 시스템 클록)..."
-      sudo phc2sys -s "${PTP_NIC}" -c CLOCK_REALTIME -m > /tmp/phc2sys.log 2>&1 &
-      _wait_ptp_converge /tmp/phc2sys.log "phc offset"
-    fi
-  else
-    echo "[setup] PHC 없음 → SW timestamp 모드"
-    sudo ptp4l -i "${PTP_NIC}" -s -m -S > /tmp/ptp4l_slave.log 2>&1 &
-    _wait_ptp_converge /tmp/ptp4l_slave.log "master offset"
+  if [[ -z "${CHRONY_SERVER}" ]]; then
+    echo "  [warn] CHRONY_SERVER 미설정 — 클록 동기화 건너뜀"
+    return 0
   fi
-}
 
-_wait_ptp_converge() {
-  local logfile=$1
-  local pattern=$2
-  local offset="" abs_offset=""
-  echo "[setup] PTP 수렴 대기 (목표: |offset| < 1ms)..."
-  for i in $(seq 1 120); do
-    # "offset" 다음 단어를 추출 (awk로 lookbehind 없이 처리)
-    offset=$(awk "/${pattern}/ {for(i=1;i<=NF;i++) if(\$i==\"offset\") {print \$(i+1); break}}" \
-             "${logfile}" 2>/dev/null | tail -1)
-    if [[ -n "${offset}" ]]; then
-      abs_offset=$(( offset < 0 ? -offset : offset ))
-      printf "\r  대기 중... %3ds  offset=%d ns      " "${i}" "${offset}"
-      if (( abs_offset < 1000000 )); then
+  echo "[setup] chrony NTP 클라이언트 설정 (서버: ${CHRONY_SERVER})..."
+  sudo sed -i '/#rp-exp/d' /etc/chrony/chrony.conf
+  echo "server ${CHRONY_SERVER} iburst prefer  #rp-exp" \
+    | sudo tee -a /etc/chrony/chrony.conf > /dev/null
+  sudo systemctl restart chrony
+  sleep 2
+
+  # 즉시 스텝 동기화
+  sudo chronyc makestep 2>/dev/null || true
+
+  echo "[setup] 클록 동기화 대기 (목표: |offset| < 1ms)..."
+  local offset_sec abs_offset_ms
+  for i in $(seq 1 60); do
+    offset_sec=$(chronyc tracking 2>/dev/null \
+                 | awk '/Last offset/{print $3}')
+    if [[ -n "${offset_sec}" ]]; then
+      abs_offset_ms=$(awk "BEGIN{v=${offset_sec}; if(v<0)v=-v; printf \"%.3f\", v*1000}")
+      printf "\r  대기 중... %2ds  offset=%s ms      " "${i}" "${abs_offset_ms}"
+      if awk "BEGIN{exit !(${offset_sec#-} < 0.001)}"; then
         echo ""
-        echo "  [setup] PTP 수렴 완료 (offset=${offset} ns)  $(date '+%H:%M:%S')"
+        echo "  [setup] 클록 동기화 완료 (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
         return 0
       fi
     else
-      printf "\r  대기 중... %3ds  (master 미감지)    " "${i}"
+      printf "\r  대기 중... %2ds  (서버 미연결)      " "${i}"
     fi
     sleep 1
   done
   echo ""
-  echo "  [warn] PTP 120s 내 수렴 실패 (offset=${offset:-?} ns)"
-  echo "  [hint] sudo tcpdump -i ${PTP_NIC} udp port 319 or port 320  으로 PTP 패킷 확인"
-  echo "  [hint] 방화벽: sudo ufw allow 319/udp && sudo ufw allow 320/udp"
-  echo "  계속 진행합니다..."
+  echo "  [warn] 60s 내 동기화 실패 (offset=${offset_sec:-?} s) — 계속 진행"
 }
 
 # 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
@@ -147,7 +119,7 @@ setup_env
 
 echo ""
 echo "사전 확인:"
-echo "  1) Laptop A에서 run_exp1_pub.sh 실행 후 대기 중"
+echo "  1) Laptop A에서 run_exp1_pub.sh --sync <B-wlan-IP> 실행 후 대기 중"
 echo ""
 read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
 

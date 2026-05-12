@@ -44,21 +44,19 @@ set -u
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
-PTP_NIC=${PTP_NIC:-$(ip link show | awk -F': ' '/^[0-9]+: e/{print $2; exit}')}
-
-# ── 환경 설정 (CPU governor, PTP master) ─────────────────────────────────────
+# ── 환경 설정 (CPU governor, chrony NTP 서버) ────────────────────────────────
 setup_env() {
   echo "[setup] CPU governor → performance"
   sudo cpupower frequency-set -g performance 2>/dev/null \
     || echo "  [warn] cpupower 실패 (무시)"
 
-  echo "[setup] PTP 기존 프로세스 정리..."
-  sudo pkill ptp4l 2>/dev/null || true
-  sleep 1
-
-  echo "[setup] ptp4l master 시작 (NIC=${PTP_NIC})..."
-  sudo ptp4l -i "${PTP_NIC}" -m --slave_only 0 > /tmp/ptp4l_master.log 2>&1 &
-  echo "  [setup] ptp4l master 시작됨  $(date '+%H:%M:%S')"
+  echo "[setup] chrony NTP 서버 설정..."
+  # 이전에 추가한 항목 제거 후 재추가
+  sudo sed -i '/#rp-exp/d' /etc/chrony/chrony.conf
+  echo "local stratum 1  #rp-exp" | sudo tee -a /etc/chrony/chrony.conf > /dev/null
+  echo "allow 0/0         #rp-exp" | sudo tee -a /etc/chrony/chrony.conf > /dev/null
+  sudo systemctl restart chrony
+  echo "  [setup] chronyd NTP 서버 시작됨  $(date '+%H:%M:%S')"
 }
 
 # ── Publisher 제어 ────────────────────────────────────────────────────────────
