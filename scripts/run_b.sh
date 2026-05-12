@@ -56,6 +56,9 @@ fi
 mkdir -p "${OUTDIR}"
 echo "[run_b] ${SCENARIO}/${CONDITION}/run${RUN}  NIC=${NIC}  outdir=${OUTDIR}"
 
+# ros2 daemon이 이전 run에서 시작됐을 수 있으므로 매 run 시작 전 정지
+ros2 daemon stop 2>/dev/null || true
+
 # ── Step 3: observer 도구 (baseline은 skip) ─────────────────────────────────
 # rp_hz / rp_bag: rp run 을 먼저 실행(DDS 통신 전 프로빙 시작),
 #                 이후 rp topic hz / rp bag record 로 출력 제어
