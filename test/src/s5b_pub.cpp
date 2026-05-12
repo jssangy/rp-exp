@@ -11,12 +11,12 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/point_field.hpp>
 
-// S5-b: 로보택시 — /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(10Hz)
+// S5-b: 로보택시 — /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz)
 //                 + /camera/front/compressed(30Hz) + /camera/side/compressed(30Hz)
 //                 + /depth/image_raw(30Hz)
 static constexpr double   HZ_CMD        = 20.0;
 static constexpr double   HZ_IMU        = 200.0;
-static constexpr double   HZ_POINTS     = 10.0;
+static constexpr double   HZ_POINTS     = 20.0;
 static constexpr double   HZ_CAM        = 30.0;
 static constexpr uint32_t NUM_POINTS    = 130000;   // 64ch ~2.8 MB
 static constexpr uint32_t POINT_STEP    = 22;

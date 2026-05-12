@@ -44,16 +44,16 @@ Publisher          Original Subscriber
 | S1 | /cmd_vel (TwistStamped) | 20 Hz | ~72 B | ~29 Kbps |
 | S2 | /imu | 200 Hz | ~320 B | ~720 Kbps |
 | S3-a | /scan | 40 Hz | ~4.3 KB | ~13.8 Mbps |
-| S3-b | /points (VLP-16, 16ch) | 10 Hz | ~644 KB | ~51.5 Mbps |
-| S3-c | /points (64ch) | 10 Hz | ~2.72 MB | ~229 Mbps |
+| S3-b | /points (VLP-16, 16ch) | 20 Hz | ~644 KB | ~103 Mbps |
+| S3-c | /points (64ch) | 20 Hz | ~2.72 MB | ~435 Mbps |
 | S4-a | /image_raw/compressed | 30 Hz | ~150 KB | ~36 Mbps |
 | S4-b | /depth/image_raw | 30 Hz | ~600 KB | ~147 Mbps |
 | S5-a | 복합 실내 AMR | — | — | ~50 Mbps |
-| S5-b | 복합 자율주행 | — | — | ~449 Mbps |
+| S5-b | 복합 자율주행 | — | — | ~655 Mbps |
 
 S5-a 구성: /cmd_vel(20Hz) + /imu(200Hz) + /scan(40Hz) + /image_raw/compressed(30Hz)
 
-S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(10Hz) + /camera/front/compressed(30Hz) + /camera/side/compressed(30Hz) + /depth/image_raw(30Hz)
+S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz) + /camera/front/compressed(30Hz) + /camera/side/compressed(30Hz) + /depth/image_raw(30Hz)
 
 ### 3.2 관찰 도구 조건
 

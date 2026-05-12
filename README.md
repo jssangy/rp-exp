@@ -85,9 +85,9 @@ ros2 run test s3a_sub
 
 | 항목 | 값 |
 |------|-----|
-| 주기 | 10 Hz |
-| 페이로드 | ~660 KB (30,000 pts × 22 B) |
-| 대역폭 | ~53 Mbps |
+| 주기 | 20 Hz |
+| 페이로드 | ~644 KB (30,000 pts × 22 B) |
+| 대역폭 | ~103 Mbps |
 | IP 단편화 / DATA_FRAG | 발생 |
 
 ```bash
@@ -104,9 +104,9 @@ ros2 run test s3_points_sub
 
 | 항목 | 값 |
 |------|-----|
-| 주기 | 10 Hz |
-| 페이로드 | ~2.8 MB (130,000 pts × 22 B) |
-| 대역폭 | ~160–320 Mbps |
+| 주기 | 20 Hz |
+| 페이로드 | ~2.72 MB (130,000 pts × 22 B) |
+| 대역폭 | ~435 Mbps |
 | IP 단편화 / DATA_FRAG | 발생 |
 
 ```bash
@@ -178,9 +178,9 @@ ros2 launch test s5a_sub.launch.py
 
 | 항목 | 값 |
 |------|-----|
-| 구성 | /cmd_vel (20 Hz) + /imu (200 Hz) + /points 64ch (10 Hz) + /camera/front/compressed (30 Hz) + /camera/side/compressed (30 Hz) + /depth/image_raw (30 Hz) |
+| 구성 | /cmd_vel (20 Hz) + /imu (200 Hz) + /points 64ch (20 Hz) + /camera/front/compressed (30 Hz) + /camera/side/compressed (30 Hz) + /depth/image_raw (30 Hz) |
 | GID 수 | 6 |
-| 대역폭 | ~449 Mbps |
+| 대역폭 | ~655 Mbps |
 | 대표 플랫폼 | Autoware, Apollo |
 
 ```bash

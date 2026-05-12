@@ -108,9 +108,9 @@
 | 대상 센서 | Velodyne VLP-16, Robosense RS-LiDAR-16 |
 | 토픽 | /points |
 | 타입 | sensor_msgs/PointCloud2 |
-| 주기 | 10 Hz |
+| 주기 | 20 Hz |
 | 페이로드 | ~644 KB (30,000 pts × 22 B/pt) |
-| 추정 대역폭 | ~51.5 Mbps |
+| 추정 대역폭 | ~103 Mbps |
 | IP 단편화 | 발생 / RTPS DATA_FRAG 발생 (64 KB 초과) |
 | E2E 측정 | 가능 (header.stamp 포함) |
 | 구간 분류 | 현실 재현 |
@@ -125,9 +125,9 @@ RtpsProcessor DATA_FRAG 재조립 부하 진입.
 | 대상 센서 | Velodyne HDL-64E, Hesai Pandar64 |
 | 토픽 | /points |
 | 타입 | sensor_msgs/PointCloud2 |
-| 주기 | 10 Hz |
+| 주기 | 20 Hz |
 | 페이로드 | ~2.72 MB (130,000 pts × 22 B/pt) |
-| 추정 대역폭 | ~229 Mbps |
+| 추정 대역폭 | ~435 Mbps |
 | IP 단편화 | 발생 / RTPS DATA_FRAG 발생 (다수 fragment) |
 | E2E 측정 | 가능 (header.stamp 포함) |
 | 구간 분류 | 현실 재현 |
@@ -201,16 +201,16 @@ Intel RealSense, Microsoft Azure Kinect 기반 실내 AMR 로컬라이제이션 
 
 | 항목 | 값 |
 |---|---|
-| 구성 | S1 (/cmd_vel, 20 Hz) + S2 (/imu, 200 Hz) + S3-c (/points 64ch, 10 Hz) + S4-a × 2 (/image_raw/compressed 전방·측면, 30 Hz) + S4-b (/depth/image_raw, 30 Hz) |
+| 구성 | S1 (/cmd_vel, 20 Hz) + S2 (/imu, 200 Hz) + S3-c (/points 64ch, 20 Hz) + S4-a × 2 (/image_raw/compressed 전방·측면, 30 Hz) + S4-b (/depth/image_raw, 30 Hz) |
 | 활성 GID 수 | 6 |
-| 총 추정 대역폭 | ~449 Mbps |
+| 총 추정 대역폭 | ~655 Mbps |
 | 대표 플랫폼 | Autoware 실차, Apollo 배포 플랫폼 |
 | 실험 목적 | 고대역폭·다중 DATA_FRAG 동시 처리 시 RtpsProcessor 및 eBPF 파이프라인 부하 측정 |
-| 구간 분류 | **현실 재현** (GbE 여유 ~491 Mbps 잔여) |
+| 구간 분류 | **현실 재현** (GbE 여유 ~345 Mbps 잔여) |
 
 > **총 추정 대역폭 계산**:
-> S1(~0.03 Mbps) + S2(~0.72 Mbps) + S3-c(~229 Mbps)
-> + S4-a × 2(~72 Mbps) + S4-b(~147 Mbps) ≈ ~449 Mbps
+> S1(~0.03 Mbps) + S2(~0.72 Mbps) + S3-c(~435 Mbps)
+> + S4-a × 2(~72 Mbps) + S4-b(~147 Mbps) ≈ ~655 Mbps
 
 > **플랫폼 역할**: S3-c publisher는 Jetson 또는 노트북 담당.
 > S4-b publisher는 노트북 담당 (RPi는 CPU 한계).
@@ -224,11 +224,11 @@ Intel RealSense, Microsoft Azure Kinect 기반 실내 AMR 로컬라이제이션 
 | S1 | /cmd_vel | TwistStamped | 20 Hz | ~72 B | ~29 Kbps | ✗ | ✗ | 
 | S2 | /imu | Imu | 200 Hz | ~320 B | ~720 Kbps | ✗ | ✗ | 
 | S3-a | /scan | LaserScan | 40 Hz | ~4.3 KB | ~13.8 Mbps | ✓ | ✗ | 
-| S3-b | /points | PointCloud2 | 10 Hz | ~644 KB | ~51.5 Mbps | ✓ | ✓ | 
-| S3-c | /points | PointCloud2 | 10 Hz | ~2.72 MB | ~229 Mbps | ✓ | ✓ | 
+| S3-b | /points | PointCloud2 | 20 Hz | ~644 KB | ~103 Mbps | ✓ | ✓ | 
+| S3-c | /points | PointCloud2 | 20 Hz | ~2.72 MB | ~435 Mbps | ✓ | ✓ | 
 | S4-a | /image_raw/compressed | CompressedImage | 30 Hz | ~150 KB | ~36 Mbps | ✓ | ✓ | 
 | S4-b | /depth/image_raw | Image | 30 Hz | ~600 KB | ~147 Mbps | ✓ | ✓ | 
 | S5-a | /cmd_vel + /imu + /scan + /image_raw/compressed | — | 20/200/40/30 Hz | — | ~50 Mbps | ✓ | ✓ | 
-| S5-b | /cmd_vel + /imu + /points + /image_raw/compressed×2 + /depth/image_raw | — | 20/200/10/30/30 Hz | — | ~449 Mbps | ✓ | ✓ |
+| S5-b | /cmd_vel + /imu + /points + /image_raw/compressed×2 + /depth/image_raw | — | 20/200/20/30/30 Hz | — | ~655 Mbps | ✓ | ✓ |
 
 ---

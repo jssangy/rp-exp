@@ -9,7 +9,7 @@
 // Velodyne 드라이버 호환 레이아웃 (22 B/pt)
 // x(4) y(4) z(4) intensity(4) ring(2) time(4)
 static constexpr uint32_t POINT_STEP = 22;
-static constexpr double   HZ         = 10.0;
+static constexpr double   HZ         = 20.0;
 
 // 시나리오별 기본 포인트 수
 // S3-b: 30000, S3-c: 130000

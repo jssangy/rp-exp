@@ -9,7 +9,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
-static constexpr uint64_t EXPECTED = 10 * 60;  // 10 Hz × 60 s
+static constexpr uint64_t EXPECTED = 20 * 60;  // 20 Hz × 60 s
 
 class S3PointsSubscriber : public rclcpp::Node
 {
