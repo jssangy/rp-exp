@@ -27,6 +27,7 @@ RUN=$(printf "%02d" "${3:?}")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 OUTDIR="${REPO_DIR}/results/exp1/${SCENARIO}/${CONDITION}/run${RUN}"
+BAGDIR="${REPO_DIR}/bags/exp1/${SCENARIO}/${CONDITION}/run${RUN}"
 
 # NIC 인터페이스 (기본: 기본 게이트웨이 인터페이스 자동 감지)
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
@@ -67,7 +68,8 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rosbag2)
-    ros2 bag record ${BAG_TOPICS} -o "${OUTDIR}/bag" > "${OUTDIR}/obs.log" 2>&1 &
+    mkdir -p "${BAGDIR}"
+    ros2 bag record ${BAG_TOPICS} --storage mcap -o "${BAGDIR}/bag" > "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_hz)
@@ -77,9 +79,10 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rp_bag)
+    mkdir -p "${BAGDIR}"
     rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
-    rp bag record ${BAG_TOPICS} -o "${OUTDIR}/bag" >> "${OUTDIR}/obs.log" 2>&1 &
+    rp bag record ${BAG_TOPICS} -o "${BAGDIR}/bag" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   baseline)
