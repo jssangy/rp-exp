@@ -55,16 +55,16 @@ public:
       measuring_ = true;
       timer_warmup_->cancel();
       timer_measure_ = create_wall_timer(60s, [this]() {
-        RCLCPP_INFO(get_logger(),
-          "FINAL [60s]:"
+        std::printf("FINAL [60s]:"
           " cmd %lu/%lu(%.1f%%)"
           " imu %lu/%lu(%.1f%%)"
           " scan %lu/%lu(%.1f%%)"
-          " cam %lu/%lu(%.1f%%)",
+          " cam %lu/%lu(%.1f%%)\n",
           recv_cmd_.load(),  EXP_CMD,  drop_pct(recv_cmd_.load(),  EXP_CMD),
           recv_imu_.load(),  EXP_IMU,  drop_pct(recv_imu_.load(),  EXP_IMU),
           recv_scan_.load(), EXP_SCAN, drop_pct(recv_scan_.load(), EXP_SCAN),
           recv_cam_.load(),  EXP_CAM,  drop_pct(recv_cam_.load(),  EXP_CAM));
+        std::fflush(stdout);
         rclcpp::shutdown();
       });
     });

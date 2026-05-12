@@ -71,20 +71,20 @@ public:
       measuring_ = true;
       timer_warmup_->cancel();
       timer_measure_ = create_wall_timer(60s, [this]() {
-        RCLCPP_INFO(get_logger(),
-          "FINAL [60s]:"
+        std::printf("FINAL [60s]:"
           " cmd %lu/%lu(%.1f%%)"
           " imu %lu/%lu(%.1f%%)"
           " pts %lu/%lu(%.1f%%)"
           " front %lu/%lu(%.1f%%)"
           " side %lu/%lu(%.1f%%)"
-          " depth %lu/%lu(%.1f%%)",
+          " depth %lu/%lu(%.1f%%)\n",
           recv_cmd_.load(),   EXP_CMD,   drop_pct(recv_cmd_.load(),   EXP_CMD),
           recv_imu_.load(),   EXP_IMU,   drop_pct(recv_imu_.load(),   EXP_IMU),
           recv_pts_.load(),   EXP_PTS,   drop_pct(recv_pts_.load(),   EXP_PTS),
           recv_front_.load(), EXP_FRONT, drop_pct(recv_front_.load(), EXP_FRONT),
           recv_side_.load(),  EXP_SIDE,  drop_pct(recv_side_.load(),  EXP_SIDE),
           recv_depth_.load(), EXP_DEPTH, drop_pct(recv_depth_.load(), EXP_DEPTH));
+        std::fflush(stdout);
         rclcpp::shutdown();
       });
     });

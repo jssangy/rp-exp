@@ -31,10 +31,10 @@ public:
       timer_warmup_->cancel();
       timer_measure_ = create_wall_timer(60s, [this]() {
         uint64_t recv = recv_count_.load();
-        RCLCPP_INFO(get_logger(),
-          "FINAL [60s]: recv %lu / expected %lu → drop %.1f%%",
+        std::printf("FINAL [60s]: recv %lu / expected %lu -> drop %.1f%%\n",
           recv, EXPECTED,
           100.0 * (EXPECTED - std::min(recv, EXPECTED)) / EXPECTED);
+        std::fflush(stdout);
         rclcpp::shutdown();
       });
     });

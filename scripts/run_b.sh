@@ -103,7 +103,7 @@ esac
 NETDEV_PID=$!
 
 # ── Step 6: subscriber (10s warmup + 60s measure 후 자동 종료) ───────────────
-ros2 run test "${SUB_NODE}" | tee "${OUTDIR}/sub.log" | grep -v "^LAT "
+ros2 run test "${SUB_NODE}" | tee "${OUTDIR}/sub.log" | grep -v "^LAT " || true
 
 # ── Step 8: 정리 ─────────────────────────────────────────────────────────────
 [[ -n "${OBS_PID}" ]] && kill "${OBS_PID}" 2>/dev/null || true
