@@ -83,15 +83,17 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rp_hz)
-    rp run > "${OUTDIR}/obs.log" 2>&1 &
+    sudo rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
+    sleep 1  # rp run이 소켓을 열 때까지 대기
     rp topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_bag)
     mkdir -p "${BAGDIR}"
-    rp run > "${OUTDIR}/obs.log" 2>&1 &
+    sudo rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
+    sleep 1  # rp run이 소켓을 열 때까지 대기
     rp bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
@@ -129,51 +131,32 @@ sleep 10
 ) > "${OUTDIR}/netdev.log" &
 NETDEV_PID=$!
 
-# CPU/메모리 샘플링 (observer PID가 있을 때만)
-# 출력: timestamp_ms  label  cpu%  rss_kb
-# CPU%: /proc/<pid>/stat utime+stime 델타, 메모리: /proc/<pid>/status VmRSS
-CPU_MEM_PID=""
-if [[ -n "${RP_PID}" || -n "${OBS_PID}" ]]; then
-  PIDS_MON=()
-  LABELS_MON=()
-  [[ -n "${RP_PID}"  ]] && PIDS_MON+=("${RP_PID}")  && LABELS_MON+=("rp_run")
-  [[ -n "${OBS_PID}" ]] && PIDS_MON+=("${OBS_PID}") && LABELS_MON+=("${CONDITION}")
+# 시스템 전체 CPU/메모리 샘플링 (모든 조건에서 실행)
+# 출력: timestamp_ms  cpu%  used_kb
+# CPU%: /proc/stat idle 델타 기반, 메모리: /proc/meminfo MemTotal-MemAvailable
+(
+  set +e
+  prev=$(awk '/^cpu / {print $2+$3+$4+$5+$6+$7+$8, $5}' /proc/stat)
+  prev_total=$(echo "${prev}" | awk '{print $1}')
+  prev_idle=$(echo "${prev}"  | awk '{print $2}')
 
-  (
-    set +e  # 서브셸 내부에서 개별 명령 실패가 전체를 종료하지 않도록
-    CLK_TCK_LOCAL="${CLK_TCK}"
-    N=${#PIDS_MON[@]}
-
-    # 초기 ticks 읽기
-    declare -a prev_ticks
-    for (( i=0; i<N; i++ )); do
-      prev_ticks[$i]=$(awk '{print $14+$15}' /proc/${PIDS_MON[$i]}/stat 2>/dev/null || echo 0)
-    done
-    prev_t=$(date +%s%3N)
-
-    while true; do
-      sleep 1
-      curr_t=$(date +%s%3N)
-      elapsed_ms=$(( curr_t - prev_t ))
-      [[ ${elapsed_ms} -le 0 ]] && elapsed_ms=1
-
-      for (( i=0; i<N; i++ )); do
-        pid="${PIDS_MON[$i]}"
-        lbl="${LABELS_MON[$i]}"
-        [[ -d /proc/${pid} ]] || continue
-        curr_ticks=$(awk '{print $14+$15}' /proc/${pid}/stat 2>/dev/null || echo 0)
-        delta=$(( curr_ticks - prev_ticks[$i] ))
-        [[ ${delta} -lt 0 ]] && delta=0
-        cpu_pct=$(awk "BEGIN {printf \"%.1f\", ${delta} * 100000 / (${CLK_TCK_LOCAL} * ${elapsed_ms})}")
-        rss_kb=$(awk '/VmRSS/{print $2}' /proc/${pid}/status 2>/dev/null || echo 0)
-        echo "${curr_t} ${lbl} ${cpu_pct} ${rss_kb}"
-        prev_ticks[$i]=${curr_ticks}
-      done
-      prev_t=${curr_t}
-    done
-  ) > "${OUTDIR}/cpu_mem.log" &
-  CPU_MEM_PID=$!
-fi
+  while true; do
+    sleep 1
+    curr_t=$(date +%s%3N)
+    curr=$(awk '/^cpu / {print $2+$3+$4+$5+$6+$7+$8, $5}' /proc/stat)
+    curr_total=$(echo "${curr}" | awk '{print $1}')
+    curr_idle=$(echo "${curr}"  | awk '{print $2}')
+    delta_total=$(( curr_total - prev_total ))
+    delta_idle=$(( curr_idle  - prev_idle  ))
+    [[ ${delta_total} -le 0 ]] && delta_total=1
+    cpu_pct=$(awk "BEGIN {printf \"%.1f\", (1 - ${delta_idle}/${delta_total}) * 100}")
+    used_kb=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{print t-a}' /proc/meminfo)
+    echo "${curr_t} ${cpu_pct} ${used_kb}"
+    prev_total=${curr_total}
+    prev_idle=${curr_idle}
+  done
+) > "${OUTDIR}/cpu_mem.log" &
+CPU_MEM_PID=$!
 
 # ── Step 5: subscriber 종료 대기 (60s 측정 후 자동 종료) ──────────────────────
 wait "${SUB_PID}" 2>/dev/null || true
@@ -192,22 +175,22 @@ kill "${NETDEV_PID}" 2>/dev/null || true
 wait 2>/dev/null || true
 
 # ── Step 8: 잔존 ROS 2 프로세스 전체 강제 종료 ────────────────────────────────
-pkill -SIGTERM -f "ros2 run"     2>/dev/null || true
-pkill -SIGTERM -f "ros2 launch"  2>/dev/null || true
-pkill -SIGTERM -f "ros2 topic"   2>/dev/null || true
-pkill -SIGTERM -f "ros2 bag"     2>/dev/null || true
-pkill -SIGTERM -f "rp run"       2>/dev/null || true
-pkill -SIGTERM -f "rp topic"     2>/dev/null || true
-pkill -SIGTERM -f "rp bag"       2>/dev/null || true
+pkill -SIGTERM -f "ros2 run"    2>/dev/null || true
+pkill -SIGTERM -f "ros2 launch" 2>/dev/null || true
+pkill -SIGTERM -f "ros2 topic"  2>/dev/null || true
+pkill -SIGTERM -f "ros2 bag"    2>/dev/null || true
+sudo pkill -SIGTERM -f "rp run" 2>/dev/null || true
+pkill -SIGTERM -f "rp topic"    2>/dev/null || true
+pkill -SIGTERM -f "rp bag"      2>/dev/null || true
 sleep 2
 # SIGTERM 후에도 살아있는 프로세스는 SIGKILL
-pkill -SIGKILL -f "ros2 run"     2>/dev/null || true
-pkill -SIGKILL -f "ros2 launch"  2>/dev/null || true
-pkill -SIGKILL -f "ros2 topic"   2>/dev/null || true
-pkill -SIGKILL -f "ros2 bag"     2>/dev/null || true
-pkill -SIGKILL -f "rp run"       2>/dev/null || true
-pkill -SIGKILL -f "rp topic"     2>/dev/null || true
-pkill -SIGKILL -f "rp bag"       2>/dev/null || true
+pkill -SIGKILL -f "ros2 run"    2>/dev/null || true
+pkill -SIGKILL -f "ros2 launch" 2>/dev/null || true
+pkill -SIGKILL -f "ros2 topic"  2>/dev/null || true
+pkill -SIGKILL -f "ros2 bag"    2>/dev/null || true
+sudo pkill -SIGKILL -f "rp run" 2>/dev/null || true
+pkill -SIGKILL -f "rp topic"    2>/dev/null || true
+pkill -SIGKILL -f "rp bag"      2>/dev/null || true
 ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"

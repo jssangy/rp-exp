@@ -76,8 +76,8 @@ S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz) + /camera/front/c
 | ΔRX (bytes/s) | `/proc/net/dev` 1초 간격 샘플링, 60s 측정 창 평균 | Laptop B NIC |
 | 메시지 드롭률 | subscriber 60s 수신 카운트 vs expected(Hz×60) | Laptop B |
 | E2E latency p50/p95/p99 | header.stamp 기반, 측정 창 동안 메시지마다 sub.log에 기록 후 후처리, PTP 동기화 전제 | Laptop B subscriber 내장 |
-| CPU 사용률 (%) | `/proc/<pid>/stat` 1초 간격 샘플링, observer PID 대상 | Laptop B observer 프로세스 |
-| 메모리 RSS (KB) | `/proc/<pid>/status` VmRSS 1초 간격 샘플링 | Laptop B observer 프로세스 |
+| 시스템 CPU 사용률 (%) | `/proc/stat` idle 델타 기반 1초 간격 샘플링, 모든 조건에서 측정 | Laptop B 전체 시스템 |
+| 시스템 메모리 사용량 (KB) | `/proc/meminfo` MemTotal−MemAvailable 1초 간격 샘플링 | Laptop B 전체 시스템 |
 
 ---
 
@@ -246,23 +246,20 @@ print(f'max = {vals[-1]:.3f} ms')
 ### 8.4 CPU / 메모리
 
 ```
-cpu_mem.log 컬럼: timestamp_ms  label  cpu%  rss_kb
+cpu_mem.log 컬럼: timestamp_ms  cpu%  used_kb
+(모든 조건에서 시스템 전체 측정 — baseline 대비 증가량 비교용)
 
-# rp 조건: rp_run + rp_hz(또는 rp_bag) 합산
-# ros2 조건: topic_hz 또는 rosbag2 단일 프로세스
-
-# Python으로 평균·최대 계산
+# Python으로 조건별 평균·최대 계산
 python3 -c "
-import collections, sys
-data = collections.defaultdict(list)
-for line in open('cpu_mem.log'):
-    t, label, cpu, rss = line.split()
-    data[label].append((float(cpu), int(rss)))
-
-for label, vals in sorted(data.items()):
-    cpus = [v[0] for v in vals]
-    rsss = [v[1] for v in vals]
-    print(f'{label}: cpu avg={sum(cpus)/len(cpus):.1f}% max={max(cpus):.1f}%  '
-          f'rss avg={sum(rsss)/len(rsss):.0f}KB max={max(rsss):.0f}KB')
+import sys
+lines = [l.split() for l in open('cpu_mem.log')]
+cpus = [float(l[1]) for l in lines]
+mems = [int(l[2])   for l in lines]
+print(f'cpu avg={sum(cpus)/len(cpus):.1f}% max={max(cpus):.1f}%')
+print(f'mem avg={sum(mems)/len(mems):.0f}KB max={max(mems):.0f}KB')
 "
+
+# baseline 대비 증가량 계산 예시
+# Δcpu = cpu%(condition) - cpu%(baseline)
+# Δmem = used_kb(condition) - used_kb(baseline)
 ```
