@@ -2,17 +2,13 @@
 # Laptop B — Experiment 1 전체 자동 실행
 #
 # 사용법:
-#   ./scripts/run_exp1_sub.sh
-#   ./scripts/run_exp1_sub.sh --scenarios S3b,S4b,S5b
-#   ./scripts/run_exp1_sub.sh --scenarios S1 --runs 3
-#   ./scripts/run_exp1_sub.sh --sync <Laptop-A-wlan-IP>   # 이벤트 동기화
+#   ./scripts/run_exp1_sub.sh --sync <Laptop-A-wlan-IP>   # 이벤트 기반 (권장)
+#   ./scripts/run_exp1_sub.sh                             # 타이머 기반 (레거시)
 #
-# --sync 없으면 타이머 기반 동기화 (SCENARIO_WAIT).
-# --sync 있으면 nc 핸드셰이크:
-#   B → A: "DONE" on port 55001  (시나리오 완료 후 통보)
-#   A → B: "READY" on port 55002 (publisher 전환 완료 신호)
+# 이벤트 기반: run마다 A에 START/STOP 전송 → pub 생명주기 정밀 제어
+# 타이머 기반: SCENARIO_WAIT 동안 대기 (--sync 없을 때)
 #
-# 주의: --sync 통신은 WiFi(wlan0) 경유 — eth0 ΔRX 오염 없음.
+# 주의: --sync 통신은 WiFi(wlan0) 경유 — eth0 ΔRX 오염 없음
 
 set -euo pipefail
 
@@ -22,11 +18,10 @@ REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 ALL_SCENARIOS=(S1 S2 S3a S3b S3c S4a S4b S5a S5b)
 SCENARIOS=()
 N_RUNS=10
-BUFFER_S=180  # 타이머 모드 전용 여유 시간 (초)
-SYNC_HOST=""  # A의 wlan IP (--sync 로 지정)
-SYNC_PORT=55001      # B → A "DONE"
-SYNC_ACK_PORT=55002  # A → B "READY"
-SYNC_TIMEOUT=600     # READY 대기 최대 시간 (초)
+BUFFER_S=180
+SYNC_HOST=""
+SYNC_PORT=55001
+SYNC_ACK_PORT=55002
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -39,7 +34,6 @@ while [[ $# -gt 0 ]]; do
 done
 [[ ${#SCENARIOS[@]} -eq 0 ]] && SCENARIOS=("${ALL_SCENARIOS[@]}")
 
-# ROS 환경
 set +u
 if ! command -v ros2 &>/dev/null; then
   source /opt/ros/humble/setup.bash
@@ -49,29 +43,28 @@ set -u
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
-# NIC 자동 감지
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
 export NIC
+export SYNC_HOST
+export SYNC_PORT
+export SYNC_ACK_PORT
 
-# 타이머 모드: 시나리오당 대기 시간
-SECS_PER_RUN=80
-SCENARIO_WAIT=$(( 5 * N_RUNS * SECS_PER_RUN + BUFFER_S ))
-
-# 시간 추정
-TOTAL_SECS=$(( ${#SCENARIOS[@]} * SCENARIO_WAIT ))
+# 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
+SECS_PER_RUN=84
+TOTAL_SECS=$(( ${#SCENARIOS[@]} * 5 * N_RUNS * SECS_PER_RUN ))
 TOTAL_H=$(( TOTAL_SECS / 3600 ))
 TOTAL_M=$(( (TOTAL_SECS % 3600) / 60 ))
 
 echo "════════════════════════════════════════════════"
 echo " Experiment 1 — Laptop B (Subscriber)"
 echo " 시나리오 : ${SCENARIOS[*]}"
-echo " 조건     : baseline topic_hz rosbag2 rp_hz rp_bag"
+echo " 조건     : baseline rp_hz rp_bag topic_hz rosbag2"
 echo " 반복     : ${N_RUNS}회"
 echo " NIC      : ${NIC}"
 if [[ -n "${SYNC_HOST}" ]]; then
-  echo " 동기화   : 이벤트 기반 (A=${SYNC_HOST})"
+  echo " 동기화   : 이벤트 기반 (A=${SYNC_HOST}, run별 pub 시작/종료)"
 else
-  echo " 동기화   : 타이머 기반 (${SCENARIO_WAIT}s/시나리오)"
+  echo " 동기화   : 타이머 기반"
   echo " 예상시간 : ${TOTAL_H}h ${TOTAL_M}m"
 fi
 echo "════════════════════════════════════════════════"
@@ -82,37 +75,10 @@ echo "  2) Laptop A에서 run_exp1_pub.sh 실행 후 대기 중"
 echo ""
 read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
 
-# ── 동기화 함수 ──────────────────────────────────────────────────────────────
-
-# A에 "DONE" 신호 전송 (시나리오 완료 후)
-send_done_to_a() {
-  local attempt
-  for attempt in 1 2 3; do
-    if echo "DONE" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null; then
-      echo "  [sync] DONE 전송 완료  $(date '+%H:%M:%S')"
-      return 0
-    fi
-    echo "  [sync] DONE 전송 실패 (attempt ${attempt}/3), 재시도..."
-    sleep 2
-  done
-  echo "  [sync][WARN] DONE 전송 실패 — A가 타임아웃 후 자동 전환"
-}
-
-# A의 "READY" 신호 수신 (publisher 전환 완료 후)
-wait_ready_from_a() {
-  echo "  [sync] A의 READY 신호 대기 중... (port ${SYNC_ACK_PORT}, timeout ${SYNC_TIMEOUT}s)"
-  if nc -l -w "${SYNC_TIMEOUT}" -p "${SYNC_ACK_PORT}" > /dev/null 2>&1; then
-    echo "  [sync] READY 수신  $(date '+%H:%M:%S')"
-  else
-    echo "  [sync][WARN] READY 대기 타임아웃 — 다음 시나리오로 진행"
-  fi
-}
-
-# ── 메인 루프 ─────────────────────────────────────────────────────────────────
-
 START_TIME=$(date +%s)
 FAILED=()
-CONDITIONS=(baseline topic_hz rosbag2 rp_hz rp_bag)
+# rp 조건을 먼저 실행해 ros2 tool의 DDS 잔재 오염 방지
+CONDITIONS=(baseline rp_hz rp_bag topic_hz rosbag2)
 
 for SCENARIO in "${SCENARIOS[@]}"; do
   SCENARIO_START=$(date +%s)
@@ -139,24 +105,23 @@ for SCENARIO in "${SCENARIOS[@]}"; do
   echo ""
   echo "  ✓ ${SCENARIO} 완료 — ${ELAPSED}s  ($(date '+%H:%M:%S'))"
 
-  # 마지막 시나리오는 동기화 불필요
-  if [[ "${SCENARIO}" == "${SCENARIOS[-1]}" ]]; then
-    continue
-  fi
-
-  if [[ -n "${SYNC_HOST}" ]]; then
-    # 이벤트 기반: A에 완료 통보 후 READY 대기
-    send_done_to_a
-    wait_ready_from_a
-  else
-    # 타이머 기반: SCENARIO_WAIT 기준으로 남은 시간 대기
+  # 타이머 모드: 마지막 시나리오가 아니면 남은 시간 대기
+  if [[ -z "${SYNC_HOST}" && "${SCENARIO}" != "${SCENARIOS[-1]}" ]]; then
+    SECS_PER_RUN_TIMER=80
+    SCENARIO_WAIT=$(( 5 * N_RUNS * SECS_PER_RUN_TIMER + BUFFER_S ))
     REMAINING=$(( SCENARIO_WAIT - ELAPSED ))
     if (( REMAINING > 0 )); then
-      echo "  다음 시나리오까지 ${REMAINING}s 대기 (Laptop A publisher 전환 중)..."
+      echo "  다음 시나리오까지 ${REMAINING}s 대기..."
       sleep "${REMAINING}"
     fi
   fi
 done
+
+# 이벤트 모드: A에 실험 완료 통보
+if [[ -n "${SYNC_HOST}" ]]; then
+  echo "DONE" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
+  echo "  [sync] DONE 전송 완료"
+fi
 
 # 최종 요약
 TOTAL_ELAPSED=$(( $(date +%s) - START_TIME ))

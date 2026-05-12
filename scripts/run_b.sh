@@ -3,7 +3,13 @@
 # usage: ./run_b.sh <scenario> <condition> <run>
 # e.g.:  ./run_b.sh S3b rosbag2 1
 #
-# conditions: baseline | topic_hz | rosbag2 | rp_hz | rp_bag
+# conditions: baseline | rp_hz | rp_bag | topic_hz | rosbag2
+#
+# 환경변수:
+#   SYNC_HOST      : Laptop A wlan IP (설정 시 per-run pub 동기화)
+#   SYNC_PORT      : B→A 포트 (기본 55001)
+#   SYNC_ACK_PORT  : A→B 포트 (기본 55002)
+#   NIC            : 측정 인터페이스 (미설정 시 자동 감지)
 
 set -euo pipefail
 
@@ -29,8 +35,10 @@ REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 OUTDIR="${REPO_DIR}/results/exp1/${SCENARIO}/${CONDITION}/run${RUN}"
 BAGDIR="${REPO_DIR}/bags/exp1/${SCENARIO}/${CONDITION}/run${RUN}"
 
-# NIC 인터페이스 (기본: 기본 게이트웨이 인터페이스 자동 감지)
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
+SYNC_HOST=${SYNC_HOST:-""}
+SYNC_PORT=${SYNC_PORT:-55001}
+SYNC_ACK_PORT=${SYNC_ACK_PORT:-55002}
 
 # 시나리오별 설정
 case ${SCENARIO} in
@@ -46,7 +54,6 @@ case ${SCENARIO} in
   *) echo "[ERROR] unknown scenario: ${SCENARIO}"; exit 1 ;;
 esac
 
-# S5는 bag 조건에서 --all 사용
 if [[ ${SCENARIO} == S5* ]]; then
   BAG_TOPICS="--all"
 else
@@ -56,12 +63,10 @@ fi
 mkdir -p "${OUTDIR}"
 echo "[run_b] ${SCENARIO}/${CONDITION}/run${RUN}  NIC=${NIC}  outdir=${OUTDIR}"
 
-# ros2 daemon이 이전 run에서 시작됐을 수 있으므로 매 run 시작 전 정지
+# ros2 daemon 잔재 제거
 ros2 daemon stop 2>/dev/null || true
 
-# ── Step 3: observer 도구 (baseline은 skip) ─────────────────────────────────
-# rp_hz / rp_bag: rp run 을 먼저 실행(DDS 통신 전 프로빙 시작),
-#                 이후 rp topic hz / rp bag record 로 출력 제어
+# ── Step 1: observer 도구 먼저 실행 (DDS discovery 전에 프로빙 시작) ──────────
 OBS_PID=""
 RP_PID=""
 
@@ -95,7 +100,22 @@ case ${CONDITION} in
     ;;
 esac
 
-# ── Step 5: /proc/net/dev 샘플링 ─────────────────────────────────────────────
+# ── Step 2: Laptop A에 publisher 시작 요청 ────────────────────────────────────
+if [[ -n "${SYNC_HOST}" ]]; then
+  echo "  [sync] START ${SCENARIO} 전송..."
+  echo "START ${SCENARIO}" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
+  nc -l -w30 -p "${SYNC_ACK_PORT}" > /dev/null 2>&1 || true
+  echo "  [sync] Publisher 준비 완료  $(date '+%H:%M:%S')"
+else
+  echo "  [warn] SYNC_HOST 미설정 — publisher가 이미 실행 중이어야 함"
+fi
+
+# ── Step 3: subscriber 백그라운드 실행 (10s warmup 내장) ──────────────────────
+ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
+SUB_PID=$!
+
+# ── Step 4: warmup 대기 후 /proc/net/dev 샘플링 시작 ─────────────────────────
+sleep 10
 (
   while true; do
     grep " ${NIC}:" /proc/net/dev \
@@ -105,10 +125,16 @@ esac
 ) > "${OUTDIR}/netdev.log" &
 NETDEV_PID=$!
 
-# ── Step 6: subscriber (10s warmup + 60s measure 후 자동 종료) ───────────────
-ros2 run test "${SUB_NODE}" | tee "${OUTDIR}/sub.log" | grep -v "^LAT " || true
+# ── Step 5: subscriber 종료 대기 (60s 측정 후 자동 종료) ──────────────────────
+wait "${SUB_PID}" 2>/dev/null || true
+echo "  [sub] 완료  $(date '+%H:%M:%S')"
 
-# ── Step 8: 정리 ─────────────────────────────────────────────────────────────
+# ── Step 6: Laptop A에 publisher 종료 요청 ───────────────────────────────────
+if [[ -n "${SYNC_HOST}" ]]; then
+  echo "STOP" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
+fi
+
+# ── Step 7: 백그라운드 프로세스 정리 ─────────────────────────────────────────
 [[ -n "${OBS_PID}" ]] && kill "${OBS_PID}" 2>/dev/null || true
 [[ -n "${RP_PID}"  ]] && kill "${RP_PID}"  2>/dev/null || true
 kill "${NETDEV_PID}" 2>/dev/null || true
