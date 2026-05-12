@@ -51,14 +51,14 @@ PUB_PID=""
 stop_current() {
   if [[ -n "${PUB_PID}" ]]; then
     echo "[pub] 종료 (PID ${PUB_PID})  $(date '+%H:%M:%S')"
-    kill "${PUB_PID}" 2>/dev/null || true
-    wait "${PUB_PID}" 2>/dev/null || true
+    # ros2 run/launch 먼저 종료 → pub_a.sh(bash)가 포그라운드 명령 대기에서 풀림
     pkill -SIGTERM -f "ros2 run test .*pub"    2>/dev/null || true
     pkill -SIGTERM -f "ros2 launch test .*pub" 2>/dev/null || true
-    sleep 2
+    sleep 1
     pkill -SIGKILL -f "ros2 run test .*pub"    2>/dev/null || true
     pkill -SIGKILL -f "ros2 launch test .*pub" 2>/dev/null || true
-    ros2 daemon stop 2>/dev/null || true
+    kill "${PUB_PID}" 2>/dev/null || true
+    wait "${PUB_PID}" 2>/dev/null || true
     PUB_PID=""
   fi
 }
