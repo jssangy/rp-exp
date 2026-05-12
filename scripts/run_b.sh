@@ -131,21 +131,24 @@ NETDEV_PID=$!
 
 # CPU/메모리 샘플링 (observer PID가 있을 때만)
 # 출력: timestamp_ms  label  cpu%  rss_kb
-# CPU%: /proc/<pid>/stat (utime+stime 델타), 메모리: /proc/<pid>/status (VmRSS)
+# CPU%: /proc/<pid>/stat utime+stime 델타, 메모리: /proc/<pid>/status VmRSS
 CPU_MEM_PID=""
 if [[ -n "${RP_PID}" || -n "${OBS_PID}" ]]; then
-  (
-    declare -A prev_ticks
-    declare -A labels
+  PIDS_MON=()
+  LABELS_MON=()
+  [[ -n "${RP_PID}"  ]] && PIDS_MON+=("${RP_PID}")  && LABELS_MON+=("rp_run")
+  [[ -n "${OBS_PID}" ]] && PIDS_MON+=("${OBS_PID}") && LABELS_MON+=("${CONDITION}")
 
-    if [[ -n "${RP_PID}" ]]; then
-      prev_ticks[${RP_PID}]=$(awk '{print $14+$15}' /proc/${RP_PID}/stat 2>/dev/null || echo 0)
-      labels[${RP_PID}]="rp_run"
-    fi
-    if [[ -n "${OBS_PID}" ]]; then
-      prev_ticks[${OBS_PID}]=$(awk '{print $14+$15}' /proc/${OBS_PID}/stat 2>/dev/null || echo 0)
-      labels[${OBS_PID}]="${CONDITION}"
-    fi
+  (
+    set +e  # 서브셸 내부에서 개별 명령 실패가 전체를 종료하지 않도록
+    CLK_TCK_LOCAL="${CLK_TCK}"
+    N=${#PIDS_MON[@]}
+
+    # 초기 ticks 읽기
+    declare -a prev_ticks
+    for (( i=0; i<N; i++ )); do
+      prev_ticks[$i]=$(awk '{print $14+$15}' /proc/${PIDS_MON[$i]}/stat 2>/dev/null || echo 0)
+    done
     prev_t=$(date +%s%3N)
 
     while true; do
@@ -154,14 +157,17 @@ if [[ -n "${RP_PID}" || -n "${OBS_PID}" ]]; then
       elapsed_ms=$(( curr_t - prev_t ))
       [[ ${elapsed_ms} -le 0 ]] && elapsed_ms=1
 
-      for pid in "${!labels[@]}"; do
+      for (( i=0; i<N; i++ )); do
+        pid="${PIDS_MON[$i]}"
+        lbl="${LABELS_MON[$i]}"
         [[ -d /proc/${pid} ]] || continue
         curr_ticks=$(awk '{print $14+$15}' /proc/${pid}/stat 2>/dev/null || echo 0)
-        delta=$(( curr_ticks - prev_ticks[${pid}] ))
-        cpu_pct=$(awk "BEGIN {printf \"%.1f\", ${delta} * 100000 / (${CLK_TCK} * ${elapsed_ms})}")
-        rss_kb=$(grep -m1 VmRSS /proc/${pid}/status 2>/dev/null | awk '{print $2}' || echo 0)
-        echo "${curr_t} ${labels[${pid}]} ${cpu_pct} ${rss_kb}"
-        prev_ticks[${pid}]=${curr_ticks}
+        delta=$(( curr_ticks - prev_ticks[$i] ))
+        [[ ${delta} -lt 0 ]] && delta=0
+        cpu_pct=$(awk "BEGIN {printf \"%.1f\", ${delta} * 100000 / (${CLK_TCK_LOCAL} * ${elapsed_ms})}")
+        rss_kb=$(awk '/VmRSS/{print $2}' /proc/${pid}/status 2>/dev/null || echo 0)
+        echo "${curr_t} ${lbl} ${cpu_pct} ${rss_kb}"
+        prev_ticks[$i]=${curr_ticks}
       done
       prev_t=${curr_t}
     done
@@ -184,6 +190,25 @@ fi
 [[ -n "${CPU_MEM_PID}" ]] && kill "${CPU_MEM_PID}"  2>/dev/null || true
 kill "${NETDEV_PID}" 2>/dev/null || true
 wait 2>/dev/null || true
+
+# ── Step 8: 잔존 ROS 2 프로세스 전체 강제 종료 ────────────────────────────────
+pkill -SIGTERM -f "ros2 run"     2>/dev/null || true
+pkill -SIGTERM -f "ros2 launch"  2>/dev/null || true
+pkill -SIGTERM -f "ros2 topic"   2>/dev/null || true
+pkill -SIGTERM -f "ros2 bag"     2>/dev/null || true
+pkill -SIGTERM -f "rp run"       2>/dev/null || true
+pkill -SIGTERM -f "rp topic"     2>/dev/null || true
+pkill -SIGTERM -f "rp bag"       2>/dev/null || true
+sleep 2
+# SIGTERM 후에도 살아있는 프로세스는 SIGKILL
+pkill -SIGKILL -f "ros2 run"     2>/dev/null || true
+pkill -SIGKILL -f "ros2 launch"  2>/dev/null || true
+pkill -SIGKILL -f "ros2 topic"   2>/dev/null || true
+pkill -SIGKILL -f "ros2 bag"     2>/dev/null || true
+pkill -SIGKILL -f "rp run"       2>/dev/null || true
+pkill -SIGKILL -f "rp topic"     2>/dev/null || true
+pkill -SIGKILL -f "rp bag"       2>/dev/null || true
+ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"
 sleep 10
