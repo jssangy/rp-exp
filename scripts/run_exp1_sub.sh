@@ -53,6 +53,10 @@ export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
 # Chrony server IP. Defaults to SYNC_HOST and can be overridden.
 CHRONY_SERVER=${CHRONY_SERVER:-${SYNC_HOST}}
+# Signed chrony offset acceptance window in seconds.
+# Default target: 0 < Last offset < 1ms.
+CHRONY_MIN_OFFSET_SEC=${CHRONY_MIN_OFFSET_SEC:-0}
+CHRONY_MAX_OFFSET_SEC=${CHRONY_MAX_OFFSET_SEC:-0.001}
 export NIC
 export SYNC_HOST
 export SYNC_PORT
@@ -159,20 +163,20 @@ sync_clock_for_condition() {
   sleep 3
   sudo chronyc makestep 2>/dev/null || true
 
-  echo "  [clock] source=${CHRONY_SERVER}, target: |offset| < 1ms"
-  local offset_sec abs_offset_ms selected_source
+  echo "  [clock] source=${CHRONY_SERVER}, target: ${CHRONY_MIN_OFFSET_SEC}s < offset < ${CHRONY_MAX_OFFSET_SEC}s"
+  local offset_sec offset_ms selected_source
   for i in $(seq 1 180); do
     offset_sec=$(chronyc tracking 2>/dev/null \
                  | awk '/Last offset/{print $4}')
     selected_source=$(chronyc sources -n 2>/dev/null \
                       | awk '$1 ~ /^\^\*/ {print $2; exit}')
     if [[ -n "${offset_sec}" ]]; then
-      abs_offset_ms=$(awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; printf \"%.3f\", v*1000}")
+      offset_ms=$(awk "BEGIN{v=${offset_sec}+0; printf \"%.3f\", v*1000}")
       if (( i == 1 || i % 5 == 0 )); then
-        echo "  [clock] wait=${i}s selected=${selected_source:-?} offset=${abs_offset_ms}ms"
+        echo "  [clock] wait=${i}s selected=${selected_source:-?} offset=${offset_ms}ms"
       fi
       if [[ "${selected_source}" == "${CHRONY_SERVER}" ]] && \
-         awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; exit !(v < 0.001)}"; then
+         awk "BEGIN{v=${offset_sec}+0; min=${CHRONY_MIN_OFFSET_SEC}+0; max=${CHRONY_MAX_OFFSET_SEC}+0; exit !(v > min && v < max)}"; then
         echo "  [clock] sync complete (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
         return 0
       fi
@@ -183,7 +187,7 @@ sync_clock_for_condition() {
     fi
     sleep 1
   done
-  echo "  [ERROR] ${label}: clock sync failed within 180s (selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
+  echo "  [ERROR] ${label}: clock sync failed within 180s (target=${CHRONY_MIN_OFFSET_SEC}s<offset<${CHRONY_MAX_OFFSET_SEC}s, selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
   return 1
 }
 
