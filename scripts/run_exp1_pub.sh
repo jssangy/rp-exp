@@ -73,20 +73,11 @@ stop_sudo_keepalive() {
   fi
 }
 
-# Environment setup: CPU governor and chrony NTP server.
+# Environment setup.
 setup_env() {
   echo "[setup] CPU governor -> performance"
   sudo cpupower frequency-set -g performance 2>/dev/null \
     || echo "  [warn] cpupower failed; continuing"
-
-  echo "[setup] Configuring chrony NTP server..."
-  # Remove stale drop-in files from previous runs.
-  sudo rm -f /etc/chrony/conf.d/rp-exp.conf /etc/chrony/sources.d/rp-exp.sources
-  # Ensure chrony is running, then allow clients at runtime.
-  sudo systemctl is-active chrony > /dev/null 2>&1 || sudo systemctl start chrony
-  sleep 1
-  sudo chronyc allow 0/0 > /dev/null 2>&1 || true
-  echo "  [setup] chrony NTP server ready  $(date '+%H:%M:%S')"
 }
 
 # Publisher control.

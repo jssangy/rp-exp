@@ -61,7 +61,6 @@ private:
     std::chrono::steady_clock::time_point window_start;
     bool window_started = false;
     uint64_t window_count = 0;
-    double latency_sum = 0.0, latency_max = 0.0;
 
     while (running_) {
       std::unique_lock<std::mutex> lk(mtx_);
@@ -77,25 +76,17 @@ private:
             window_start = std::chrono::steady_clock::now();
             window_started = true;
           }
-          auto recv_time = now();
-          double latency_ms = (recv_time - msg->header.stamp).nanoseconds() / 1e6;
-          std::printf("LAT %.3f\n", latency_ms);
           ++recv_count_;
           ++window_count;
-          latency_sum += latency_ms;
-          if (latency_ms > latency_max) latency_max = latency_ms;
 
           auto now_steady = std::chrono::steady_clock::now();
           double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
           if (elapsed >= 5.0) {
             RCLCPP_INFO(get_logger(),
-              "recv %lu msgs | rate %.1f Hz | latency avg %.2f ms max %.2f ms",
-              recv_count_.load(), window_count / elapsed,
-              latency_sum / window_count, latency_max);
+              "recv %lu msgs | rate %.1f Hz",
+              recv_count_.load(), window_count / elapsed);
             window_start = now_steady;
             window_count = 0;
-            latency_sum  = 0.0;
-            latency_max  = 0.0;
           }
         }
 

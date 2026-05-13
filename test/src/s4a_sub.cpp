@@ -61,7 +61,6 @@ private:
     std::chrono::steady_clock::time_point window_start;
     bool window_started = false;
     uint64_t window_count = 0;
-    double latency_sum = 0.0, latency_max = 0.0;
     size_t last_payload_kb = 0;
 
     while (running_) {
@@ -79,25 +78,17 @@ private:
             window_started = true;
           }
           last_payload_kb = msg->data.size() / 1024;
-          auto recv_time = now();
-          double latency_ms = (recv_time - msg->header.stamp).nanoseconds() / 1e6;
-          std::printf("LAT %.3f\n", latency_ms);
           ++recv_count_;
           ++window_count;
-          latency_sum += latency_ms;
-          if (latency_ms > latency_max) latency_max = latency_ms;
 
           auto now_steady = std::chrono::steady_clock::now();
           double elapsed = std::chrono::duration<double>(now_steady - window_start).count();
           if (elapsed >= 5.0) {
             RCLCPP_INFO(get_logger(),
-              "recv %lu msgs | rate %.1f Hz | payload %zu KB | latency avg %.2f ms max %.2f ms",
-              recv_count_.load(), window_count / elapsed, last_payload_kb,
-              latency_sum / window_count, latency_max);
+              "recv %lu msgs | rate %.1f Hz | payload %zu KB",
+              recv_count_.load(), window_count / elapsed, last_payload_kb);
             window_start = now_steady;
             window_count = 0;
-            latency_sum  = 0.0;
-            latency_max  = 0.0;
           }
         }
 

@@ -10,7 +10,7 @@
 **검증 목표**
 
 - 관찰 도구가 Laptop B의 수신 트래픽(RX)을 얼마나 증가시키는지 측정한다.
-- 관찰 도구가 원본 subscriber의 drop rate와 E2E latency를 얼마나 악화시키는지 측정한다.
+- 관찰 도구가 원본 subscriber의 drop rate를 얼마나 악화시키는지 측정한다.
 - 관찰 도구별 시스템 CPU 사용률과 메모리 사용량 증가분을 비교한다.
 - 네트워크 오버헤드뿐 아니라 resource overhead까지 포함해 ros2probe의 실험적 우위성을 보인다.
 
@@ -22,10 +22,8 @@
 | H1b | `rp topic hz`와 `rp bag record`의 baseline 대비 ΔRX는 0에 가깝다 |
 | H1c | 대역폭 압박 시 `ros2 bag record`는 원본 subscriber의 drop rate를 증가시킨다 |
 | H1d | ros2probe 계열 조건에서는 원본 subscriber의 drop rate 변화가 작다 |
-| H1e | DDS subscriber 기반 관찰은 E2E latency를 증가시키거나 jitter를 악화시킨다 |
-| H1f | ros2probe 계열 조건에서는 E2E latency 변화가 작다 |
-| H1g | `rp topic hz`는 `ros2 topic hz` 대비 CPU·메모리 증가량이 작다 |
-| H1h | `rp bag record`는 `ros2 bag record` 대비 CPU·메모리 증가량이 작다 |
+| H1e | `rp topic hz`는 `ros2 topic hz` 대비 CPU·메모리 증가량이 작다 |
+| H1f | `rp bag record`는 `ros2 bag record` 대비 CPU·메모리 증가량이 작다 |
 
 ---
 
@@ -42,7 +40,7 @@ Publisher          Original Subscriber
 - **Discovery**: multicast (FastDDS 기본값)
 - **Data 전송**: unicast (FastDDS 기본값)
 - 실험 전 tshark로 data 패킷 unicast 1회 검증
-- **시간 동기화**: Laptop B가 condition 시작마다 Laptop A를 chrony source로 강제 선택
+- **Run 제어**: Laptop B가 event signal로 Laptop A publisher 시작/종료를 제어
 
 ---
 
@@ -88,7 +86,6 @@ S5 publisher/subscriber는 단일 복합 노드가 아니라 launch 파일로 S1
 |---|---|---|
 | ΔRX (bytes/s) | `/proc/net/dev` 1초 간격 샘플링, 60s 측정 창 평균 | Laptop B NIC |
 | 메시지 드롭률 | subscriber 60s 수신 카운트 vs expected(Hz×60) | Laptop B |
-| E2E latency p50/p95/p99 | header.stamp 기반, 측정 창 동안 메시지마다 sub.log에 기록 후 후처리, chrony 동기화 전제 | Laptop B subscriber 내장 |
 | 시스템 CPU 사용률 (%) | `/proc/stat` idle 델타 기반 1초 간격 샘플링, 모든 조건에서 측정 | Laptop B 전체 시스템 |
 | 시스템 메모리 사용량 (KB) | `/proc/meminfo` MemTotal−MemAvailable 1초 간격 샘플링 | Laptop B 전체 시스템 |
 
@@ -115,62 +112,36 @@ sudo tshark -i eth0 -f "udp" -T fields -e ip.dst -c 30
 # 개별 IP 주소(unicast)가 출력되면 확인 완료
 ```
 
-### 5.3 chrony 기반 Laptop A 강제 동기화
-
-실험 스크립트는 Laptop A를 chrony server, Laptop B를 chrony client로 사용한다.
-Laptop B는 각 condition 시작 전에 기존 NTP source를 offline 처리하고 Laptop A만 online source로 둔다.
-
-확인 명령:
-
-```bash
-# Laptop B
-chronyc sources -n
-chronyc tracking
-```
-
-정상 상태는 `chronyc sources -n`에서 Laptop A IP 앞에 `^*`가 붙고, `Last offset`의 절댓값이 1ms 미만인 상태다.
-E2E latency 분석은 이 조건이 만족된 run만 사용한다.
-
----
-
 ## 6. 실험 절차 (1 run 기준)
 
 ```
 [사전]
 1. 환경 변수 설정 (CPU governor, RMW, DOMAIN_ID)
-2. Laptop A chrony server 준비
-3. Laptop B chrony client 준비
-
-[Condition 시작 시]
-4. Laptop B에서 Laptop A를 chrony source로 강제 선택
-5. selected source == Laptop A, |offset| < 1ms 확인
 
 [Laptop B]
-6. Observer 도구 실행 (백그라운드)        ← baseline이면 skip
+2. Observer 도구 실행 (백그라운드)        ← baseline이면 skip
    - ros2 topic hz, ros2 bag record, rp topic hz, rp bag record
    - rp run은 DDS participant 생성 전(discovery 단계)부터 프로빙해야 하므로
      publisher보다 먼저 실행
 
 [Laptop A]
-7. Publisher 실행 (WiFi 동기화 신호 수신 후)
+3. Publisher 실행 (event START 신호 수신 후)
 
 [Laptop B]
-8. Subscriber 백그라운드 실행
+4. Subscriber 백그라운드 실행
    → 내부 10s warm-up 자동 시작 (DDS discovery + observer 연결 대기)
-9. 10s warm-up 대기 후 /proc/net/dev, CPU, memory 샘플링 시작 (1초 간격, 백그라운드)
+5. 10s warm-up 대기 후 /proc/net/dev, CPU, memory 샘플링 시작 (1초 간격, 백그라운드)
    → t=10s: 측정 창 시작 (자동)
    → t=70s: FINAL 출력 후 subscriber 자동 종료
 
 [완료]
-10. Subscriber 프로세스 종료 확인 → run 완료
-11. 백그라운드 프로세스 종료 (sampler, observer 도구, publisher)
-   - WiFi 동기화: B → A "STOP" 신호 → A publisher 종료
+6. Subscriber 프로세스 종료 확인 → run 완료
+7. 백그라운드 프로세스 종료 (sampler, observer 도구, publisher)
+   - Event control: B → A "STOP" 신호 → A publisher 종료
    - B는 run에서 시작한 process group만 종료해 다른 ROS 프로세스 오염 방지
-12. 결과 저장 (sub.log, netdev.log, obs.log, cpu_mem.log)
-13. 10s 대기 후 다음 run
+8. 결과 저장 (sub.log, netdev.log, obs.log, cpu_mem.log)
+9. 10s 대기 후 다음 run
 ```
-
-clock sync/check는 매 run이 아니라 각 condition 시작 전에 수행한다. run마다 동기화하면 실험 시간이 과도하게 늘고, scenario마다 한 번만 동기화하면 장시간 실행 중 clock drift가 latency에 누적될 수 있기 때문이다.
 
 ### 6.1 실행 명령
 
@@ -221,7 +192,7 @@ bags/exp1/
 
 | 파일 | 내용 |
 |---|---|
-| sub.log | subscriber stdout: `LAT <ms>` per message + `FINAL` 드롭률 |
+| sub.log | subscriber stdout: 5초 단위 수신 rate + `FINAL` 드롭률 |
 | netdev.log | 1초 간격 NIC rx_bytes (`timestamp_ms rx_bytes`) |
 | obs.log | observer 도구 stdout/stderr |
 | cpu_mem.log | 1초 간격 전체 시스템 CPU%·메모리 사용량 (`timestamp_ms cpu% used_kb`) |
@@ -246,29 +217,7 @@ sub.log에서 FINAL 라인 파싱:
 drop_rate = (expected - received) / expected × 100
 ```
 
-### 8.3 E2E latency
-
-sub.log에는 측정 창 동안 메시지마다 `LAT <ms>` (S5는 `LAT <topic> <ms>`) 한 줄씩 기록된다.
-
-```bash
-# latency 값 추출
-grep "^LAT" sub.log | awk '{print $NF}' > latency.txt
-
-# Python으로 percentile 계산
-python3 -c "
-import statistics, sys
-vals = [float(l) for l in open('latency.txt')]
-vals.sort()
-n = len(vals)
-print(f'n={n}')
-print(f'p50 = {vals[int(n*0.50)]:.3f} ms')
-print(f'p95 = {vals[int(n*0.95)]:.3f} ms')
-print(f'p99 = {vals[int(n*0.99)]:.3f} ms')
-print(f'max = {vals[-1]:.3f} ms')
-"
-```
-
-### 8.4 CPU / 메모리
+### 8.3 CPU / 메모리
 
 ```
 cpu_mem.log 컬럼: timestamp_ms  cpu%  used_kb
@@ -295,6 +244,6 @@ CPU·메모리 분석은 절대값보다 baseline 대비 증가량을 우선 사
 
 | 비교 | 보고 지표 |
 |---|---|
-| `topic_hz` vs `rp_hz` | ΔRX, Δdrop, Δlatency p95/p99, ΔCPU avg/max, ΔMem avg/max |
-| `rosbag2` vs `rp_bag` | ΔRX, Δdrop, Δlatency p95/p99, ΔCPU avg/max, ΔMem avg/max |
+| `topic_hz` vs `rp_hz` | ΔRX, Δdrop, ΔCPU avg/max, ΔMem avg/max |
+| `rosbag2` vs `rp_bag` | ΔRX, Δdrop, ΔCPU avg/max, ΔMem avg/max |
 | 각 조건 vs baseline | observer가 원본 workload에 추가한 부하 |

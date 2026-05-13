@@ -9,7 +9,6 @@
 # Timer mode: wait for SCENARIO_WAIT when --sync is not used.
 #
 # --sync IP can be Ethernet or Wi-Fi.
-# The same IP is used as the chrony server unless CHRONY_SERVER overrides it.
 
 set -euo pipefail
 
@@ -51,13 +50,6 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
-# Chrony server IP. Defaults to SYNC_HOST and can be overridden.
-CHRONY_SERVER=${CHRONY_SERVER:-${SYNC_HOST}}
-# Signed chrony offset acceptance window in seconds.
-# For this E2E latency calculation, negative Last offset keeps B_recv - A_stamp positive.
-# Default target: -1ms < Last offset < 0.
-CHRONY_MIN_OFFSET_SEC=${CHRONY_MIN_OFFSET_SEC:--0.001}
-CHRONY_MAX_OFFSET_SEC=${CHRONY_MAX_OFFSET_SEC:-0}
 export NIC
 export SYNC_HOST
 export SYNC_PORT
@@ -118,84 +110,11 @@ stop_current_run() {
   fi
 }
 
-# Environment setup: CPU governor and chrony NTP client.
+# Environment setup.
 setup_env() {
   echo "[setup] CPU governor -> performance"
   sudo cpupower frequency-set -g performance 2>/dev/null \
     || echo "  [warn] cpupower failed; continuing"
-
-  if [[ -z "${CHRONY_SERVER}" ]]; then
-    echo "  [warn] CHRONY_SERVER is not set; skipping clock sync"
-    return 0
-  fi
-
-  echo "[setup] Configuring chrony NTP client (server: ${CHRONY_SERVER})..."
-  # Remove stale drop-in files from previous runs.
-  sudo rm -f /etc/chrony/conf.d/rp-exp.conf /etc/chrony/sources.d/rp-exp.sources
-  # Ensure chrony is running, then add the server at runtime.
-  sudo systemctl is-active chrony > /dev/null 2>&1 || sudo systemctl start chrony
-  sleep 1
-}
-
-force_chrony_source() {
-  if [[ -z "${CHRONY_SERVER}" ]]; then
-    return 0
-  fi
-
-  sudo chronyc add server "${CHRONY_SERVER}" iburst prefer > /dev/null 2>&1 || true
-  sudo chronyc reload sources > /dev/null 2>&1 || true
-
-  # During the experiment, use Laptop A as the only time source.
-  sudo chronyc offline > /dev/null 2>&1 || true
-  sudo chronyc online "${CHRONY_SERVER}" > /dev/null 2>&1 || true
-}
-
-sync_clock_for_condition() {
-  local label=${1:?}
-
-  if [[ -z "${CHRONY_SERVER}" ]]; then
-    return 0
-  fi
-
-  echo "  [clock] ${label}: forcing Laptop A (${CHRONY_SERVER}) and checking sync"
-  force_chrony_source
-
-  # Wait for iburst responses before stepping the clock.
-  sleep 3
-  sudo chronyc makestep 2>/dev/null || true
-
-  echo "  [clock] source=${CHRONY_SERVER}, target: ${CHRONY_MIN_OFFSET_SEC}s < offset < ${CHRONY_MAX_OFFSET_SEC}s"
-  local offset_sec offset_ms selected_source
-  for i in $(seq 1 180); do
-    offset_sec=$(chronyc tracking 2>/dev/null \
-                 | awk '/Last offset/{print $4}')
-    selected_source=$(chronyc sources -n 2>/dev/null \
-                      | awk '$1 ~ /^\^\*/ {print $2; exit}')
-    if [[ -n "${offset_sec}" ]]; then
-      offset_ms=$(awk "BEGIN{v=${offset_sec}+0; printf \"%.3f\", v*1000}")
-      if (( i == 1 || i % 5 == 0 )); then
-        echo "  [clock] wait=${i}s selected=${selected_source:-?} offset=${offset_ms}ms"
-      fi
-      if [[ "${selected_source}" == "${CHRONY_SERVER}" ]] && \
-         awk "BEGIN{v=${offset_sec}+0; min=${CHRONY_MIN_OFFSET_SEC}+0; max=${CHRONY_MAX_OFFSET_SEC}+0; exit !(v > min && v < max)}"; then
-        echo "  [clock] sync complete (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
-        return 0
-      fi
-    else
-      if (( i == 1 || i % 5 == 0 )); then
-        echo "  [clock] wait=${i}s server not connected"
-      fi
-    fi
-    sleep 1
-  done
-  echo "  [ERROR] ${label}: clock sync failed within 180s (target=${CHRONY_MIN_OFFSET_SEC}s<offset<${CHRONY_MAX_OFFSET_SEC}s, selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
-  return 1
-}
-
-restore_ntp() {
-  if [[ -n "${CHRONY_SERVER}" ]]; then
-    sudo -n chronyc online > /dev/null 2>&1 || true
-  fi
 }
 
 cleanup() {
@@ -203,7 +122,6 @@ cleanup() {
   CLEANED_UP=1
   normalize_tty
   stop_current_run
-  restore_ntp
   stop_sudo_keepalive
 }
 
@@ -267,10 +185,6 @@ for SCENARIO in "${SCENARIOS[@]}"; do
   for CONDITION in "${CONDITIONS[@]}"; do
     echo ""
     echo "  -- ${SCENARIO} / ${CONDITION} ------------------"
-    if ! sync_clock_for_condition "${SCENARIO}/${CONDITION}"; then
-      echo "  [ERROR] clock sync failed; aborting experiment"
-      exit 1
-    fi
     for i in $(seq 1 "${N_RUNS}"); do
       RUN_LABEL="$(printf '%02d' ${i})/${N_RUNS}"
       echo "    run ${RUN_LABEL}  ($(date '+%H:%M:%S'))"
