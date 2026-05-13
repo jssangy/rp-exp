@@ -19,12 +19,8 @@ set -u
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_DOMAIN_ID=77
 
-# 종료 시 test 패키지 pub 노드 전체 정리 (launch 하위 프로세스 포함)
 cleanup() {
-  echo "[pub_a] 정리 중..."
-  pkill -f "ros2 run test .*pub" 2>/dev/null || true
-  pkill -f "ros2 launch test .*pub" 2>/dev/null || true
-  sleep 1
+  echo "[pub_a] 종료"
 }
 trap cleanup EXIT TERM INT
 

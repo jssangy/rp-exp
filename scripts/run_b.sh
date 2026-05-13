@@ -43,6 +43,13 @@ SYNC_ACK_PORT=${SYNC_ACK_PORT:-55002}
 CLK_TCK=$(getconf CLK_TCK)
 RP_BIN=${RP_BIN:-$(command -v rp)}
 RP_SOCKET=${RP_SOCKET:-/tmp/ros2probe.sock}
+OBS_PID=""
+RP_PID=""
+SUB_PID=""
+NETDEV_PID=""
+CPU_MEM_PID=""
+PUBLISHER_STARTED=0
+STOP_SENT=0
 
 wait_for_rp_socket() {
   local timeout_decisec=${1:-100}
@@ -102,6 +109,21 @@ stop_rp_runtime() {
   fi
 }
 
+cleanup_on_exit() {
+  if [[ "${PUBLISHER_STARTED}" == "1" && "${STOP_SENT}" == "0" && -n "${SYNC_HOST}" ]]; then
+    echo "STOP" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
+    STOP_SENT=1
+  fi
+
+  [[ -n "${OBS_PID}" ]] && stop_pid_gracefully "${OBS_PID}" INT 3
+  [[ -n "${RP_PID}" ]] && stop_rp_runtime
+  [[ -n "${CPU_MEM_PID}" ]] && stop_pid_gracefully "${CPU_MEM_PID}" TERM 2
+  [[ -n "${NETDEV_PID}" ]] && stop_pid_gracefully "${NETDEV_PID}" TERM 2
+  [[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" TERM 3
+}
+
+trap cleanup_on_exit EXIT
+
 # 시나리오별 설정
 SUB_LAUNCH=""
 case ${SCENARIO} in
@@ -130,9 +152,6 @@ echo "[run_b] ${SCENARIO}/${CONDITION}/run${RUN}  NIC=${NIC}  outdir=${OUTDIR}"
 ros2 daemon stop 2>/dev/null || true
 
 # ── Step 1: observer 도구 먼저 실행 (DDS discovery 전에 프로빙 시작) ──────────
-OBS_PID=""
-RP_PID=""
-
 case ${CONDITION} in
   topic_hz)
     setsid ros2 topic hz "${TOPIC}" > "${OUTDIR}/obs.log" 2>&1 &
@@ -145,7 +164,7 @@ case ${CONDITION} in
     ;;
   rp_hz)
     sudo -n rm -f "${RP_SOCKET}" 2>/dev/null || rm -f "${RP_SOCKET}" 2>/dev/null || true
-    setsid sudo "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
+    setsid sudo -n "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
     if ! wait_for_rp_socket 100; then
       stop_rp_runtime
@@ -157,7 +176,7 @@ case ${CONDITION} in
   rp_bag)
     mkdir -p "${BAGDIR}"
     sudo -n rm -f "${RP_SOCKET}" 2>/dev/null || rm -f "${RP_SOCKET}" 2>/dev/null || true
-    setsid sudo "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
+    setsid sudo -n "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
     if ! wait_for_rp_socket 100; then
       stop_rp_runtime
@@ -179,6 +198,7 @@ if [[ -n "${SYNC_HOST}" ]]; then
   echo "START ${SCENARIO}" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
   timeout 30 nc -l -p "${SYNC_ACK_PORT}" > /dev/null 2>&1 || true
   echo "  [sync] Publisher 준비 완료  $(date '+%H:%M:%S')"
+  PUBLISHER_STARTED=1
 else
   echo "  [warn] SYNC_HOST 미설정 — publisher가 이미 실행 중이어야 함"
 fi
@@ -238,6 +258,7 @@ echo "  [sub] 완료  $(date '+%H:%M:%S')"
 # ── Step 6: Laptop A에 publisher 종료 요청 ───────────────────────────────────
 if [[ -n "${SYNC_HOST}" ]]; then
   echo "STOP" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
+  STOP_SENT=1
 fi
 
 # ── Step 7: 백그라운드 프로세스 정리 ─────────────────────────────────────────
@@ -265,4 +286,5 @@ wait "${NETDEV_PID}" 2>/dev/null || true
 ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"
+trap - EXIT
 sleep 10

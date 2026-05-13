@@ -122,7 +122,7 @@ sync_clock_for_condition() {
 
   echo "  [clock] source=${CHRONY_SERVER}, 목표: |offset| < 1ms"
   local offset_sec abs_offset_ms selected_source
-  for i in $(seq 1 60); do
+  for i in $(seq 1 180); do
     offset_sec=$(chronyc tracking 2>/dev/null \
                  | awk '/Last offset/{print $4}')
     selected_source=$(chronyc sources -n 2>/dev/null \
@@ -143,7 +143,8 @@ sync_clock_for_condition() {
     sleep 1
   done
   echo ""
-  echo "  [warn] ${label}: 60s 내 동기화 실패 (selected=${selected_source:-?}, offset=${offset_sec:-?} s) — 계속 진행"
+  echo "  [ERROR] ${label}: 180s 내 동기화 실패 (selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
+  return 1
 }
 
 restore_ntp() {
@@ -178,9 +179,9 @@ fi
 echo "════════════════════════════════════════════════"
 echo ""
 
+trap cleanup EXIT
 start_sudo_keepalive
 setup_env
-trap cleanup EXIT
 
 echo ""
 echo "사전 확인:"
@@ -203,7 +204,10 @@ for SCENARIO in "${SCENARIOS[@]}"; do
   for CONDITION in "${CONDITIONS[@]}"; do
     echo ""
     echo "  ── ${SCENARIO} / ${CONDITION} ──────────────────"
-    sync_clock_for_condition "${SCENARIO}/${CONDITION}"
+    if ! sync_clock_for_condition "${SCENARIO}/${CONDITION}"; then
+      echo "  [ERROR] clock sync failed; aborting experiment"
+      exit 1
+    fi
     for i in $(seq 1 "${N_RUNS}"); do
       RUN_LABEL="$(printf '%02d' ${i})/${N_RUNS}"
       echo "    run ${RUN_LABEL}  ($(date '+%H:%M:%S'))"
