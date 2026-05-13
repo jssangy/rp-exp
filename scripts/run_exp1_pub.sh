@@ -1,17 +1,17 @@
 #!/bin/bash
-# Laptop A — Experiment 1 publisher 자동 관리
+# Laptop A - Experiment 1 publisher controller
 #
-# 사용법:
-#   ./scripts/run_exp1_pub.sh --sync <Laptop-B-IP>   # 이벤트 기반 (권장)
-#   ./scripts/run_exp1_pub.sh                             # 타이머 기반 (레거시)
+# Usage:
+#   ./scripts/run_exp1_pub.sh --sync <Laptop-B-IP>   # event-driven mode
+#   ./scripts/run_exp1_pub.sh                        # timer-based legacy mode
 #
-# 이벤트 기반 (--sync):
-#   B가 run마다 "START <scenario>" / "STOP" / "DONE" 을 전송
-#   A가 pub 시작/종료를 각 run에 맞게 제어
-#   B → A: port 55001 / A → B: port 55002
+# Event mode (--sync):
+#   B sends "START <scenario>" / "STOP" / "DONE" for each run.
+#   A starts/stops publishers accordingly.
+#   B -> A: port 55001 / A -> B: port 55002
 #
-# 타이머 기반:
-#   시나리오당 SCENARIO_WAIT 동안 publisher 유지 (--sync 없을 때)
+# Timer mode:
+#   Keep publishers alive for SCENARIO_WAIT per scenario when --sync is not used.
 
 set -euo pipefail
 
@@ -48,7 +48,7 @@ SUDO_KEEPALIVE_PID=""
 CLEANED_UP=0
 
 start_sudo_keepalive() {
-  echo "[setup] sudo 권한 확인 (실험 중 재입력 방지)"
+  echo "[setup] Checking sudo credentials for unattended execution"
   sudo -v
   (
     while true; do
@@ -67,30 +67,30 @@ stop_sudo_keepalive() {
   fi
 }
 
-# ── 환경 설정 (CPU governor, chrony NTP 서버) ────────────────────────────────
+# Environment setup: CPU governor and chrony NTP server.
 setup_env() {
-  echo "[setup] CPU governor → performance"
+  echo "[setup] CPU governor -> performance"
   sudo cpupower frequency-set -g performance 2>/dev/null \
-    || echo "  [warn] cpupower 실패 (무시)"
+    || echo "  [warn] cpupower failed; continuing"
 
-  echo "[setup] chrony NTP 서버 설정..."
-  # 기존 drop-in 파일 제거 (이전 실행 잔재)
+  echo "[setup] Configuring chrony NTP server..."
+  # Remove stale drop-in files from previous runs.
   sudo rm -f /etc/chrony/conf.d/rp-exp.conf /etc/chrony/sources.d/rp-exp.sources
-  # chrony 정상 기동 확인 후 런타임으로 allow 설정 (재시작 불필요)
+  # Ensure chrony is running, then allow clients at runtime.
   sudo systemctl is-active chrony > /dev/null 2>&1 || sudo systemctl start chrony
   sleep 1
   sudo chronyc allow 0/0 > /dev/null 2>&1 || true
-  echo "  [setup] chrony NTP 서버 시작됨  $(date '+%H:%M:%S')"
+  echo "  [setup] chrony NTP server ready  $(date '+%H:%M:%S')"
 }
 
-# ── Publisher 제어 ────────────────────────────────────────────────────────────
+# Publisher control.
 
 PUB_PID=""
 
 stop_current() {
   if [[ -n "${PUB_PID}" ]]; then
-    echo "[pub] 종료 (PID ${PUB_PID})  $(date '+%H:%M:%S')"
-    # setsid로 시작된 프로세스 그룹 전체 kill (ros2 run Python + C++ 노드 바이너리 모두)
+    echo "[pub] stopping (PID ${PUB_PID})  $(date '+%H:%M:%S')"
+    # Kill the whole process group started by setsid.
     kill -SIGTERM -- "-${PUB_PID}" 2>/dev/null || true
     sleep 1
     kill -SIGKILL -- "-${PUB_PID}" 2>/dev/null || true
@@ -108,66 +108,66 @@ cleanup() {
 handle_signal() {
   trap - INT TERM
   echo ""
-  echo "[interrupt] 중단 요청 수신, 정리 중..."
+  echo "[interrupt] stop requested; cleaning up..."
   exit 130
 }
 
 trap cleanup EXIT
 trap handle_signal INT TERM
 
-# ── 이벤트 기반 모드 ──────────────────────────────────────────────────────────
+# Event-driven mode.
 
 run_event_driven() {
-  echo "════════════════════════════════════════════════"
-  echo " Experiment 1 — Laptop A (Publisher, 이벤트 기반)"
+  echo "================================================"
+  echo " Experiment 1 - Laptop A (Publisher, event-driven)"
   echo " B wlan IP : ${SYNC_HOST}"
-  echo " 수신 포트 : ${SYNC_PORT}  응답 포트: ${SYNC_ACK_PORT}"
-  echo "════════════════════════════════════════════════"
+  echo " Listen port: ${SYNC_PORT}  ACK port: ${SYNC_ACK_PORT}"
+  echo "================================================"
   echo ""
 
   start_sudo_keepalive
   setup_env
 
   echo ""
-  echo " B의 명령을 대기합니다. Laptop B에서 run_exp1_sub.sh --sync <A-IP>를 실행하세요."
+  echo " Waiting for commands from Laptop B. Start run_exp1_sub.sh --sync <A-IP> on Laptop B."
   echo ""
 
   while true; do
     CMD=$(nc -l -p "${SYNC_PORT}" 2>/dev/null || true)
-    CMD="${CMD%%$'\r'}"  # carriage return 제거
+    CMD="${CMD%%$'\r'}"  # Strip carriage return.
 
     case "${CMD}" in
       START\ *)
         SCENARIO="${CMD#START }"
         stop_current
         echo ""
-        echo "  [$(date '+%H:%M:%S')] ${SCENARIO} publisher 시작"
+        echo "  [$(date '+%H:%M:%S')] starting ${SCENARIO} publisher"
         setsid bash "${SCRIPT_DIR}/pub_a.sh" "${SCENARIO}" &
         PUB_PID=$!
-        sleep 1  # pub 초기화 대기
+        sleep 1  # Wait for publisher initialization.
         echo "READY" | nc -w5 "${SYNC_HOST}" "${SYNC_ACK_PORT}" 2>/dev/null || true
         ;;
       STOP)
-        echo "  [$(date '+%H:%M:%S')] publisher 종료 요청"
+        echo "  [$(date '+%H:%M:%S')] publisher stop requested"
         stop_current
         ;;
       DONE)
         echo ""
-        echo "════════════════════════════════════════════════"
-        echo " Experiment 1 (Laptop A) 완료  $(date '+%H:%M:%S')"
-        echo "════════════════════════════════════════════════"
+        echo "================================================"
+        echo " Experiment 1 (Laptop A) complete  $(date '+%H:%M:%S')"
+        echo "================================================"
         break
         ;;
       "")
         ;;
       *)
-        echo "[WARN] 알 수 없는 명령: '${CMD}'"
+        echo "[WARN] unknown command: '${CMD}'"
         ;;
     esac
   done
 }
 
-# ── 타이머 기반 모드 (레거시) ─────────────────────────────────────────────────
+# Timer-based legacy mode.
 
 run_timer_based() {
   SECS_PER_RUN=80
@@ -176,52 +176,52 @@ run_timer_based() {
   TOTAL_H=$(( TOTAL_SECS / 3600 ))
   TOTAL_M=$(( (TOTAL_SECS % 3600) / 60 ))
 
-  echo "════════════════════════════════════════════════"
-  echo " Experiment 1 — Laptop A (Publisher, 타이머 기반)"
-  echo " 시나리오  : ${SCENARIOS[*]}"
-  echo " 반복      : ${N_RUNS}회"
-  echo " 시나리오당: ${SCENARIO_WAIT}s"
-  echo " 예상시간  : ${TOTAL_H}h ${TOTAL_M}m"
-  echo "════════════════════════════════════════════════"
+  echo "================================================"
+  echo " Experiment 1 - Laptop A (Publisher, timer-based)"
+  echo " Scenarios       : ${SCENARIOS[*]}"
+  echo " Runs            : ${N_RUNS}"
+  echo " Per scenario    : ${SCENARIO_WAIT}s"
+  echo " Estimate        : ${TOTAL_H}h ${TOTAL_M}m"
+  echo "================================================"
   echo ""
 
   start_sudo_keepalive
   setup_env
 
   echo ""
-  echo " Laptop B에서 run_exp1_sub.sh 를 실행하고"
-  echo " 양쪽 동시에 Enter를 눌러 시작하세요."
+  echo " Start run_exp1_sub.sh on Laptop B."
+  echo " Press Enter on both laptops at the same time."
   echo ""
-  read -rp "준비 완료 후 Enter..."
+  read -rp "Press Enter when ready..."
 
   for SCENARIO in "${SCENARIOS[@]}"; do
     echo ""
-    echo "════════════════════════════════════════"
-    echo " [$(date '+%H:%M:%S')] 시나리오: ${SCENARIO}"
-    echo "════════════════════════════════════════"
+    echo "========================================"
+    echo " [$(date '+%H:%M:%S')] Scenario: ${SCENARIO}"
+    echo "========================================"
 
     setsid bash "${SCRIPT_DIR}/pub_a.sh" "${SCENARIO}" &
     PUB_PID=$!
-    echo "[pub] 시작 (PID ${PUB_PID})"
+    echo "[pub] started (PID ${PUB_PID})"
 
     END_TS=$(( $(date +%s) + SCENARIO_WAIT ))
     while (( $(date +%s) < END_TS )); do
       REMAINING=$(( END_TS - $(date +%s) ))
-      echo "  대기 중... ${REMAINING}s 남음"
+      echo "  Waiting... ${REMAINING}s remaining"
       sleep 5
     done
 
     stop_current
-    echo "[pub] ${SCENARIO} 완료  $(date '+%H:%M:%S')"
+    echo "[pub] ${SCENARIO} complete  $(date '+%H:%M:%S')"
   done
 
   echo ""
-  echo "════════════════════════════════════════════════"
-  echo " Experiment 1 (Laptop A) 완료  $(date '+%H:%M:%S')"
-  echo "════════════════════════════════════════════════"
+  echo "================================================"
+  echo " Experiment 1 (Laptop A) complete  $(date '+%H:%M:%S')"
+  echo "================================================"
 }
 
-# ── 실행 ──────────────────────────────────────────────────────────────────────
+# Main.
 
 if [[ -n "${SYNC_HOST}" ]]; then
   run_event_driven

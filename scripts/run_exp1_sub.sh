@@ -1,15 +1,15 @@
 #!/bin/bash
-# Laptop B — Experiment 1 전체 자동 실행
+# Laptop B - Experiment 1 runner
 #
-# 사용법:
-#   ./scripts/run_exp1_sub.sh --sync <Laptop-A-IP>   # 이벤트 기반 (권장)
-#   ./scripts/run_exp1_sub.sh                        # 타이머 기반 (레거시)
+# Usage:
+#   ./scripts/run_exp1_sub.sh --sync <Laptop-A-IP>   # event-driven mode
+#   ./scripts/run_exp1_sub.sh                        # timer-based legacy mode
 #
-# 이벤트 기반: run마다 A에 START/STOP 전송 → pub 생명주기 정밀 제어
-# 타이머 기반: SCENARIO_WAIT 동안 대기 (--sync 없을 때)
+# Event mode: send START/STOP to Laptop A for every run.
+# Timer mode: wait for SCENARIO_WAIT when --sync is not used.
 #
-# --sync IP는 ethernet 또는 WiFi 모두 사용 가능
-# chrony 서버도 동일 IP 사용 (CHRONY_SERVER 환경변수로 오버라이드 가능)
+# --sync IP can be Ethernet or Wi-Fi.
+# The same IP is used as the chrony server unless CHRONY_SERVER overrides it.
 
 set -euo pipefail
 
@@ -45,7 +45,7 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
-# chrony 서버 IP (기본: SYNC_HOST, 오버라이드 가능)
+# Chrony server IP. Defaults to SYNC_HOST and can be overridden.
 CHRONY_SERVER=${CHRONY_SERVER:-${SYNC_HOST}}
 export NIC
 export SYNC_HOST
@@ -56,7 +56,7 @@ SUDO_KEEPALIVE_PID=""
 CLEANED_UP=0
 
 start_sudo_keepalive() {
-  echo "[setup] sudo 권한 확인 (실험 중 재입력 방지)"
+  echo "[setup] Checking sudo credentials for unattended execution"
   sudo -v
   (
     while true; do
@@ -75,21 +75,21 @@ stop_sudo_keepalive() {
   fi
 }
 
-# ── 환경 설정 (CPU governor, chrony NTP 클라이언트) ──────────────────────────
+# Environment setup: CPU governor and chrony NTP client.
 setup_env() {
-  echo "[setup] CPU governor → performance"
+  echo "[setup] CPU governor -> performance"
   sudo cpupower frequency-set -g performance 2>/dev/null \
-    || echo "  [warn] cpupower 실패 (무시)"
+    || echo "  [warn] cpupower failed; continuing"
 
   if [[ -z "${CHRONY_SERVER}" ]]; then
-    echo "  [warn] CHRONY_SERVER 미설정 — 클록 동기화 건너뜀"
+    echo "  [warn] CHRONY_SERVER is not set; skipping clock sync"
     return 0
   fi
 
-  echo "[setup] chrony NTP 클라이언트 설정 (서버: ${CHRONY_SERVER})..."
-  # 기존 drop-in 파일 제거 (이전 실행 잔재)
+  echo "[setup] Configuring chrony NTP client (server: ${CHRONY_SERVER})..."
+  # Remove stale drop-in files from previous runs.
   sudo rm -f /etc/chrony/conf.d/rp-exp.conf /etc/chrony/sources.d/rp-exp.sources
-  # chrony 정상 기동 확인 후 런타임으로 서버 추가 (재시작 불필요)
+  # Ensure chrony is running, then add the server at runtime.
   sudo systemctl is-active chrony > /dev/null 2>&1 || sudo systemctl start chrony
   sleep 1
 }
@@ -102,7 +102,7 @@ force_chrony_source() {
   sudo chronyc add server "${CHRONY_SERVER}" iburst prefer > /dev/null 2>&1 || true
   sudo chronyc reload sources > /dev/null 2>&1 || true
 
-  # 실험 중에는 Laptop A만 시간 기준으로 사용한다.
+  # During the experiment, use Laptop A as the only time source.
   sudo chronyc offline > /dev/null 2>&1 || true
   sudo chronyc online "${CHRONY_SERVER}" > /dev/null 2>&1 || true
 }
@@ -114,14 +114,14 @@ sync_clock_for_condition() {
     return 0
   fi
 
-  echo "  [clock] ${label}: Laptop A(${CHRONY_SERVER}) source 강제 및 동기화 확인"
+  echo "  [clock] ${label}: forcing Laptop A (${CHRONY_SERVER}) and checking sync"
   force_chrony_source
 
-  # iburst 응답을 받은 뒤 스텝 동기화
+  # Wait for iburst responses before stepping the clock.
   sleep 3
   sudo chronyc makestep 2>/dev/null || true
 
-  echo "  [clock] source=${CHRONY_SERVER}, 목표: |offset| < 1ms"
+  echo "  [clock] source=${CHRONY_SERVER}, target: |offset| < 1ms"
   local offset_sec abs_offset_ms selected_source
   for i in $(seq 1 180); do
     offset_sec=$(chronyc tracking 2>/dev/null \
@@ -135,7 +135,7 @@ sync_clock_for_condition() {
       fi
       if [[ "${selected_source}" == "${CHRONY_SERVER}" ]] && \
          awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; exit !(v < 0.001)}"; then
-        echo "  [clock] 동기화 완료 (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
+        echo "  [clock] sync complete (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
         return 0
       fi
     else
@@ -145,7 +145,7 @@ sync_clock_for_condition() {
     fi
     sleep 1
   done
-  echo "  [ERROR] ${label}: 180s 내 동기화 실패 (selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
+  echo "  [ERROR] ${label}: clock sync failed within 180s (selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
   return 1
 }
 
@@ -165,29 +165,29 @@ cleanup() {
 handle_signal() {
   trap - INT TERM
   echo ""
-  echo "[interrupt] 중단 요청 수신, 정리 중..."
+  echo "[interrupt] stop requested; cleaning up..."
   exit 130
 }
 
-# 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
+# Time estimate per run: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep.
 SECS_PER_RUN=84
 TOTAL_SECS=$(( ${#SCENARIOS[@]} * 5 * N_RUNS * SECS_PER_RUN ))
 TOTAL_H=$(( TOTAL_SECS / 3600 ))
 TOTAL_M=$(( (TOTAL_SECS % 3600) / 60 ))
 
-echo "════════════════════════════════════════════════"
-echo " Experiment 1 — Laptop B (Subscriber)"
-echo " 시나리오 : ${SCENARIOS[*]}"
-echo " 조건     : baseline rp_hz rp_bag topic_hz rosbag2"
-echo " 반복     : ${N_RUNS}회"
+echo "================================================"
+echo " Experiment 1 - Laptop B (Subscriber)"
+echo " Scenarios : ${SCENARIOS[*]}"
+echo " Conditions: baseline rp_hz rp_bag topic_hz rosbag2"
+echo " Runs      : ${N_RUNS}"
 echo " NIC      : ${NIC}"
 if [[ -n "${SYNC_HOST}" ]]; then
-  echo " 동기화   : 이벤트 기반 (A=${SYNC_HOST}, run별 pub 시작/종료)"
+  echo " Sync     : event-driven (A=${SYNC_HOST}, per-run publisher start/stop)"
 else
-  echo " 동기화   : 타이머 기반"
-  echo " 예상시간 : ${TOTAL_H}h ${TOTAL_M}m"
+  echo " Sync     : timer-based"
+  echo " Estimate : ${TOTAL_H}h ${TOTAL_M}m"
 fi
-echo "════════════════════════════════════════════════"
+echo "================================================"
 echo ""
 
 trap cleanup EXIT
@@ -196,30 +196,30 @@ start_sudo_keepalive
 setup_env
 
 echo ""
-echo "사전 확인:"
-echo "  1) Laptop A에서 run_exp1_pub.sh --sync <B-wlan-IP> 실행 후 대기 중"
+echo "Pre-flight check:"
+echo "  1) Start run_exp1_pub.sh --sync <B-wlan-IP> on Laptop A first"
 echo ""
 if [[ -n "${SYNC_HOST}" ]]; then
-  echo "이벤트 기반 동기화 모드: Enter 대기 없이 바로 시작합니다."
+  echo "Event-driven sync mode: starting without an Enter prompt."
 else
-  read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
+  read -rp "Press Enter when both laptops are ready..."
 fi
 
 START_TIME=$(date +%s)
 FAILED=()
-# rp 조건을 먼저 실행해 ros2 tool의 DDS 잔재 오염 방지
+# Run rp conditions first to avoid DDS residue from ros2 tooling.
 CONDITIONS=(baseline rp_hz rp_bag topic_hz rosbag2)
 
 for SCENARIO in "${SCENARIOS[@]}"; do
   SCENARIO_START=$(date +%s)
   echo ""
-  echo "════════════════════════════════════════════════"
-  echo " [$(date '+%H:%M:%S')] 시나리오: ${SCENARIO}"
-  echo "════════════════════════════════════════════════"
+  echo "================================================"
+  echo " [$(date '+%H:%M:%S')] Scenario: ${SCENARIO}"
+  echo "================================================"
 
   for CONDITION in "${CONDITIONS[@]}"; do
     echo ""
-    echo "  ── ${SCENARIO} / ${CONDITION} ──────────────────"
+    echo "  -- ${SCENARIO} / ${CONDITION} ------------------"
     if ! sync_clock_for_condition "${SCENARIO}/${CONDITION}"; then
       echo "  [ERROR] clock sync failed; aborting experiment"
       exit 1
@@ -228,44 +228,44 @@ for SCENARIO in "${SCENARIOS[@]}"; do
       RUN_LABEL="$(printf '%02d' ${i})/${N_RUNS}"
       echo "    run ${RUN_LABEL}  ($(date '+%H:%M:%S'))"
       if ! bash "${SCRIPT_DIR}/run_b.sh" "${SCENARIO}" "${CONDITION}" "${i}"; then
-        echo "    [WARN] run ${RUN_LABEL} 실패, 계속 진행"
+        echo "    [WARN] run ${RUN_LABEL} failed; continuing"
         FAILED+=("${SCENARIO}/${CONDITION}/run$(printf '%02d' ${i})")
       fi
     done
-    echo "  ✓ ${CONDITION} 완료"
+    echo "  [ok] ${CONDITION} complete"
   done
 
   ELAPSED=$(( $(date +%s) - SCENARIO_START ))
   echo ""
-  echo "  ✓ ${SCENARIO} 완료 — ${ELAPSED}s  ($(date '+%H:%M:%S'))"
+  echo "  [ok] ${SCENARIO} complete - ${ELAPSED}s  ($(date '+%H:%M:%S'))"
 
-  # 타이머 모드: 마지막 시나리오가 아니면 남은 시간 대기
+  # Timer mode: wait before the next scenario unless this was the last one.
   if [[ -z "${SYNC_HOST}" && "${SCENARIO}" != "${SCENARIOS[-1]}" ]]; then
     SECS_PER_RUN_TIMER=80
     SCENARIO_WAIT=$(( 5 * N_RUNS * SECS_PER_RUN_TIMER + BUFFER_S ))
     REMAINING=$(( SCENARIO_WAIT - ELAPSED ))
     if (( REMAINING > 0 )); then
-      echo "  다음 시나리오까지 ${REMAINING}s 대기..."
+      echo "  Waiting ${REMAINING}s before the next scenario..."
       sleep "${REMAINING}"
     fi
   fi
 done
 
-# 이벤트 모드: A에 실험 완료 통보
+# Event mode: notify Laptop A that the experiment is complete.
 if [[ -n "${SYNC_HOST}" ]]; then
   echo "DONE" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
-  echo "  [sync] DONE 전송 완료"
+  echo "  [sync] DONE sent"
 fi
 
-# 최종 요약
+# Final summary.
 TOTAL_ELAPSED=$(( $(date +%s) - START_TIME ))
 echo ""
-echo "════════════════════════════════════════════════"
-echo " Experiment 1 완료  $(date '+%H:%M:%S')"
-echo " 총 소요 : $(( TOTAL_ELAPSED/3600 ))h $(( (TOTAL_ELAPSED%3600)/60 ))m"
-echo " 결과    : ${REPO_DIR}/results/exp1/"
+echo "================================================"
+echo " Experiment 1 complete  $(date '+%H:%M:%S')"
+echo " Elapsed : $(( TOTAL_ELAPSED/3600 ))h $(( (TOTAL_ELAPSED%3600)/60 ))m"
+echo " Results : ${REPO_DIR}/results/exp1/"
 if [[ ${#FAILED[@]} -gt 0 ]]; then
-  echo " 실패 run (재실행 필요):"
+  echo " Failed runs (rerun required):"
   for f in "${FAILED[@]}"; do echo "   - ${f}"; done
 fi
-echo "════════════════════════════════════════════════"
+echo "================================================"

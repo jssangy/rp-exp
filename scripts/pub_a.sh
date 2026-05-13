@@ -1,9 +1,9 @@
 #!/bin/bash
-# Laptop A — 시나리오별 publisher 실행
+# Laptop A - scenario publisher runner
 # usage: ./pub_a.sh <scenario>
 # e.g.:  ./pub_a.sh S3b
 #
-# publisher는 무한 루프 (S5는 300s). 실험 완료 후 Ctrl-C로 종료.
+# Publishers run continuously. Stop them with Ctrl-C after the experiment.
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_DOMAIN_ID=77
 
 cleanup() {
-  echo "[pub_a] 종료"
+  echo "[pub_a] stopped"
 }
 
 handle_signal() {
@@ -31,7 +31,7 @@ handle_signal() {
 trap cleanup EXIT
 trap handle_signal INT TERM
 
-echo "[pub_a] ${SCENARIO} publisher 시작"
+echo "[pub_a] starting ${SCENARIO} publisher"
 
 case ${SCENARIO} in
   S1)  ros2 run test s1_pub ;;

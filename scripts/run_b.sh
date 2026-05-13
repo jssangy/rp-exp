@@ -1,19 +1,19 @@
 #!/bin/bash
-# Laptop B — single run
+# Laptop B - single run
 # usage: ./run_b.sh <scenario> <condition> <run>
 # e.g.:  ./run_b.sh S3b rosbag2 1
 #
 # conditions: baseline | rp_hz | rp_bag | topic_hz | rosbag2
 #
-# 환경변수:
-#   SYNC_HOST      : Laptop A wlan IP (설정 시 per-run pub 동기화)
-#   SYNC_PORT      : B→A 포트 (기본 55001)
-#   SYNC_ACK_PORT  : A→B 포트 (기본 55002)
-#   NIC            : 측정 인터페이스 (미설정 시 자동 감지)
+# Environment variables:
+#   SYNC_HOST      : Laptop A wlan IP. Enables per-run publisher sync when set.
+#   SYNC_PORT      : B -> A port. Default: 55001.
+#   SYNC_ACK_PORT  : A -> B port. Default: 55002.
+#   NIC            : network interface to measure. Auto-detected when unset.
 
 set -euo pipefail
 
-# ROS 환경이 없으면 자동 소스
+# Source ROS when it is not already available.
 set +u
 if ! command -v ros2 &>/dev/null; then
   source /opt/ros/humble/setup.bash
@@ -129,14 +129,14 @@ cleanup_on_exit() {
 handle_signal() {
   trap - INT TERM
   echo ""
-  echo "[interrupt] run 중단 요청 수신"
+  echo "[interrupt] run stop requested"
   exit 130
 }
 
 trap cleanup_on_exit EXIT
 trap handle_signal INT TERM
 
-# 시나리오별 설정
+# Scenario-specific configuration.
 SUB_LAUNCH=""
 case ${SCENARIO} in
   S1)  SUB_NODE="s1_sub";        TOPIC="/cmd_vel" ;;
@@ -160,10 +160,10 @@ fi
 mkdir -p "${OUTDIR}"
 echo "[run_b] ${SCENARIO}/${CONDITION}/run${RUN}  NIC=${NIC}  outdir=${OUTDIR}"
 
-# ros2 daemon 잔재 제거
+# Remove stale ros2 daemon state.
 ros2 daemon stop 2>/dev/null || true
 
-# ── Step 1: observer 도구 먼저 실행 (DDS discovery 전에 프로빙 시작) ──────────
+# Step 1: start the observer before DDS discovery.
 case ${CONDITION} in
   topic_hz)
     setsid ros2 topic hz "${TOPIC}" > "${OUTDIR}/obs.log" 2>&1 &
@@ -204,18 +204,18 @@ case ${CONDITION} in
     ;;
 esac
 
-# ── Step 2: Laptop A에 publisher 시작 요청 ────────────────────────────────────
+# Step 2: request publisher start on Laptop A.
 if [[ -n "${SYNC_HOST}" ]]; then
-  echo "  [sync] START ${SCENARIO} 전송..."
+  echo "  [sync] sending START ${SCENARIO}..."
   echo "START ${SCENARIO}" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
   timeout 30 nc -l -p "${SYNC_ACK_PORT}" > /dev/null 2>&1 || true
-  echo "  [sync] Publisher 준비 완료  $(date '+%H:%M:%S')"
+  echo "  [sync] Publisher ready  $(date '+%H:%M:%S')"
   PUBLISHER_STARTED=1
 else
-  echo "  [warn] SYNC_HOST 미설정 — publisher가 이미 실행 중이어야 함"
+  echo "  [warn] SYNC_HOST is not set; publisher must already be running"
 fi
 
-# ── Step 3: subscriber 백그라운드 실행 (10s warmup 내장) ──────────────────────
+# Step 3: start subscriber in the background. The subscriber includes a 10s warmup.
 if [[ -n "${SUB_LAUNCH}" ]]; then
   setsid ros2 launch test "${SUB_LAUNCH}" > "${OUTDIR}/sub.log" &
 else
@@ -223,10 +223,10 @@ else
 fi
 SUB_PID=$!
 
-# ── Step 4: warmup 대기 후 netdev + CPU/메모리 샘플링 시작 ───────────────────
+# Step 4: after warmup, start netdev and CPU/memory sampling.
 sleep 10
 
-# /proc/net/dev 샘플링
+# Sample /proc/net/dev.
 (
   while true; do
     grep " ${NIC}:" /proc/net/dev \
@@ -236,9 +236,9 @@ sleep 10
 ) > "${OUTDIR}/netdev.log" &
 NETDEV_PID=$!
 
-# 시스템 전체 CPU/메모리 샘플링 (모든 조건에서 실행)
-# 출력: timestamp_ms  cpu%  used_kb
-# CPU%: /proc/stat idle 델타 기반, 메모리: /proc/meminfo MemTotal-MemAvailable
+# Sample system-wide CPU/memory for every condition.
+# Output: timestamp_ms  cpu%  used_kb
+# CPU% is based on /proc/stat idle deltas. Memory is MemTotal - MemAvailable.
 (
   set +e
   prev=$(awk '/^cpu / {print $2+$3+$4+$5+$6+$7+$8, $5}' /proc/stat)
@@ -263,17 +263,17 @@ NETDEV_PID=$!
 ) > "${OUTDIR}/cpu_mem.log" &
 CPU_MEM_PID=$!
 
-# ── Step 5: subscriber 종료 대기 (60s 측정 후 자동 종료) ──────────────────────
+# Step 5: wait for subscriber completion. It exits after the 60s measurement.
 wait "${SUB_PID}" 2>/dev/null || true
-echo "  [sub] 완료  $(date '+%H:%M:%S')"
+echo "  [sub] complete  $(date '+%H:%M:%S')"
 
-# ── Step 6: Laptop A에 publisher 종료 요청 ───────────────────────────────────
+# Step 6: request publisher stop on Laptop A.
 if [[ -n "${SYNC_HOST}" ]]; then
   echo "STOP" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
   STOP_SENT=1
 fi
 
-# ── Step 7: 백그라운드 프로세스 정리 ─────────────────────────────────────────
+# Step 7: clean up background processes.
 case ${CONDITION} in
   rp_hz|rp_bag)
     # rp CLI sends TopicHzStop/BagStop only on Ctrl-C (SIGINT), not SIGTERM.
@@ -293,10 +293,10 @@ esac
 kill "${NETDEV_PID}" 2>/dev/null || true
 wait "${NETDEV_PID}" 2>/dev/null || true
 
-# ── Step 8: 이번 run에서 시작한 subscriber/launch group 정리 ───────────────
+# Step 8: clean up the subscriber/launch group started by this run.
 [[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" TERM 5
 ros2 daemon stop 2>/dev/null || true
 
-echo "[run_b] run${RUN} done → ${OUTDIR}"
+echo "[run_b] run${RUN} done -> ${OUTDIR}"
 trap - EXIT
 sleep 10
