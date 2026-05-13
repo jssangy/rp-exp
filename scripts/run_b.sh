@@ -163,7 +163,7 @@ case ${CONDITION} in
       stop_rp_runtime
       exit 1
     fi
-    setsid "${RP_BIN}" bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
+    setsid "${RP_BIN}" bag record ${BAG_TOPICS} -o "${BAGDIR}/rp.mcap" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   baseline)
