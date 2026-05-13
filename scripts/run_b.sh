@@ -49,10 +49,12 @@ wait_for_rp_socket() {
   local i
 
   for i in $(seq 1 "${timeout_decisec}"); do
-    [[ -S "${RP_SOCKET}" ]] && return 0
+    if [[ -S "${RP_SOCKET}" ]] && timeout 1 "${RP_BIN}" topic list >/dev/null 2>&1; then
+      return 0
+    fi
     sleep 0.1
   done
-  echo "[ERROR] ros2probe command socket not ready: ${RP_SOCKET}" >&2
+  echo "[ERROR] ros2probe command server not ready: ${RP_SOCKET}" >&2
   return 1
 }
 
@@ -74,30 +76,30 @@ stop_pid_gracefully() {
   local pid=${1:?}
   local signal=${2:-TERM}
   local timeout_s=${3:-5}
+  local use_sudo=${4:-0}
 
-  kill "-${signal}" "-${pid}" 2>/dev/null || true
+  if [[ "${use_sudo}" == "1" ]]; then
+    sudo -n kill "-${signal}" -- "-${pid}" 2>/dev/null || true
+    sudo -n kill "-${signal}" "${pid}" 2>/dev/null || true
+  fi
+  kill "-${signal}" -- "-${pid}" 2>/dev/null || true
   kill "-${signal}" "${pid}" 2>/dev/null || true
   wait_pid_timeout "${pid}" "${timeout_s}" || {
-    kill -KILL "-${pid}" 2>/dev/null || true
+    if [[ "${use_sudo}" == "1" ]]; then
+      sudo -n kill -KILL -- "-${pid}" 2>/dev/null || true
+      sudo -n kill -KILL "${pid}" 2>/dev/null || true
+    fi
+    kill -KILL -- "-${pid}" 2>/dev/null || true
     kill -KILL "${pid}" 2>/dev/null || true
   }
   wait "${pid}" 2>/dev/null || true
 }
 
 stop_rp_runtime() {
-  local timeout_s=${1:-5}
-
-  # `rp run` normally runs as root via sudo. Use non-interactive sudo here so
-  # cleanup never blocks on a password prompt.
-  sudo -n pkill -INT -f "rp run" 2>/dev/null || pkill -INT -f "rp run" 2>/dev/null || true
   if [[ -n "${RP_PID}" ]]; then
-    wait_pid_timeout "${RP_PID}" "${timeout_s}" || true
-  else
-    sleep "${timeout_s}"
+    # `rp run` is started via sudo, so signal the run's process group with sudo.
+    stop_pid_gracefully "${RP_PID}" INT 5 1
   fi
-  sudo -n pkill -TERM -f "rp run" 2>/dev/null || pkill -TERM -f "rp run" 2>/dev/null || true
-  sleep 1
-  sudo -n pkill -KILL -f "rp run" 2>/dev/null || pkill -KILL -f "rp run" 2>/dev/null || true
 }
 
 # 시나리오별 설정
@@ -142,17 +144,25 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rp_hz)
+    sudo -n rm -f "${RP_SOCKET}" 2>/dev/null || rm -f "${RP_SOCKET}" 2>/dev/null || true
     setsid sudo "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
-    wait_for_rp_socket 100
+    if ! wait_for_rp_socket 100; then
+      stop_rp_runtime
+      exit 1
+    fi
     setsid "${RP_BIN}" topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_bag)
     mkdir -p "${BAGDIR}"
+    sudo -n rm -f "${RP_SOCKET}" 2>/dev/null || rm -f "${RP_SOCKET}" 2>/dev/null || true
     setsid sudo "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
-    wait_for_rp_socket 100
+    if ! wait_for_rp_socket 100; then
+      stop_rp_runtime
+      exit 1
+    fi
     setsid "${RP_BIN}" bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
@@ -175,9 +185,9 @@ fi
 
 # ── Step 3: subscriber 백그라운드 실행 (10s warmup 내장) ──────────────────────
 if [[ -n "${SUB_LAUNCH}" ]]; then
-  ros2 launch test "${SUB_LAUNCH}" > "${OUTDIR}/sub.log" &
+  setsid ros2 launch test "${SUB_LAUNCH}" > "${OUTDIR}/sub.log" &
 else
-  ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
+  setsid ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
 fi
 SUB_PID=$!
 
@@ -250,22 +260,8 @@ esac
 kill "${NETDEV_PID}" 2>/dev/null || true
 wait "${NETDEV_PID}" 2>/dev/null || true
 
-# ── Step 8: 잔존 ROS 2 프로세스 전체 강제 종료 ────────────────────────────────
-pkill -SIGTERM -f "ros2 run"    2>/dev/null || true
-pkill -SIGTERM -f "ros2 launch" 2>/dev/null || true
-pkill -SIGTERM -f "ros2 topic"  2>/dev/null || true
-pkill -SIGTERM -f "ros2 bag"    2>/dev/null || true
-pkill -SIGTERM -f "rp topic"                          2>/dev/null || true
-pkill -SIGTERM -f "rp bag"                            2>/dev/null || true
-[[ -n "${RP_PID}" ]] && (sudo -n pkill -SIGTERM -f "rp run" 2>/dev/null || pkill -SIGTERM -f "rp run" 2>/dev/null || true)
-sleep 2
-pkill -SIGKILL -f "ros2 run"                          2>/dev/null || true
-pkill -SIGKILL -f "ros2 launch"                       2>/dev/null || true
-pkill -SIGKILL -f "ros2 topic"                        2>/dev/null || true
-pkill -SIGKILL -f "ros2 bag"                          2>/dev/null || true
-pkill -SIGKILL -f "rp topic"                          2>/dev/null || true
-pkill -SIGKILL -f "rp bag"                            2>/dev/null || true
-[[ -n "${RP_PID}" ]] && (sudo -n pkill -SIGKILL -f "rp run" 2>/dev/null || pkill -SIGKILL -f "rp run" 2>/dev/null || true)
+# ── Step 8: 이번 run에서 시작한 subscriber/launch group 정리 ───────────────
+[[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" TERM 5
 ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"
