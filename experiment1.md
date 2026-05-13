@@ -1,21 +1,31 @@
-# Experiment 1: ros2probe 관찰 행위가 네트워크에 미치는 영향
+# Experiment 1: ros2probe 관찰 오버헤드 검증
 
 ## 1. 실험 개요
 
 **핵심 주장**
 
-> ros2probe는 DDS subscriber를 생성하지 않으므로 관찰 행위 자체가 네트워크에 영향을 주지 않는다.
+> ros2probe는 DDS subscriber를 생성하지 않고 네트워크 패킷을 passively 관찰하므로, 기존 ROS 2 관찰 도구 대비 네트워크 부하와 원본 subscriber 성능 교란을 최소화한다.
+> 동시에 eBPF 기반 관찰 경로를 사용해 `ros2 topic hz`/`ros2 bag record` 대비 CPU·메모리 오버헤드도 낮게 유지한다.
+
+**검증 목표**
+
+- 관찰 도구가 Laptop B의 수신 트래픽(RX)을 얼마나 증가시키는지 측정한다.
+- 관찰 도구가 원본 subscriber의 drop rate와 E2E latency를 얼마나 악화시키는지 측정한다.
+- 관찰 도구별 시스템 CPU 사용률과 메모리 사용량 증가분을 비교한다.
+- 네트워크 오버헤드뿐 아니라 resource overhead까지 포함해 ros2probe의 실험적 우위성을 보인다.
 
 **가설**
 
 | 가설 | 내용 |
 |---|---|
-| H1a | rosbag2/topic echo/topic hz는 DDS subscriber 추가로 Laptop B RX를 증가시킨다 |
-| H1b | ros2probe의 ΔRX ≈ 0 |
-| H1c | 대역폭 압박 시 rosbag2 계열은 원본 subscriber의 드롭률을 유의미하게 증가시킨다 |
-| H1d | ros2probe 활성 시 드롭률 변화 없음 |
-| H1e | rosbag2 계열은 E2E latency를 유의미하게 증가시킨다 |
-| H1f | ros2probe 활성 시 E2E latency 변화 없음 |
+| H1a | `ros2 topic hz`와 `ros2 bag record`는 DDS subscriber 추가로 Laptop B RX를 증가시킨다 |
+| H1b | `rp topic hz`와 `rp bag record`의 baseline 대비 ΔRX는 0에 가깝다 |
+| H1c | 대역폭 압박 시 `ros2 bag record`는 원본 subscriber의 drop rate를 증가시킨다 |
+| H1d | ros2probe 계열 조건에서는 원본 subscriber의 drop rate 변화가 작다 |
+| H1e | DDS subscriber 기반 관찰은 E2E latency를 증가시키거나 jitter를 악화시킨다 |
+| H1f | ros2probe 계열 조건에서는 E2E latency 변화가 작다 |
+| H1g | `rp topic hz`는 `ros2 topic hz` 대비 CPU·메모리 증가량이 작다 |
+| H1h | `rp bag record`는 `ros2 bag record` 대비 CPU·메모리 증가량이 작다 |
 
 ---
 
@@ -32,6 +42,7 @@ Publisher          Original Subscriber
 - **Discovery**: multicast (FastDDS 기본값)
 - **Data 전송**: unicast (FastDDS 기본값)
 - 실험 전 tshark로 data 패킷 unicast 1회 검증
+- **시간 동기화**: Laptop B가 condition 시작마다 Laptop A를 chrony source로 강제 선택
 
 ---
 
@@ -55,6 +66,8 @@ S5-a 구성: /cmd_vel(20Hz) + /imu(200Hz) + /scan(40Hz) + /image_raw/compressed(
 
 S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz) + /camera/front/compressed(30Hz) + /camera/side/compressed(30Hz) + /depth/image_raw(30Hz)
 
+S5 publisher/subscriber는 단일 복합 노드가 아니라 launch 파일로 S1~S4 개별 노드를 조합해 실행한다. 이는 실제 로봇 시스템처럼 여러 프로세스·여러 DDS participant가 동시에 존재하는 상황을 재현하기 위함이다.
+
 ### 3.2 관찰 도구 조건
 
 | 조건 | S1~S4 | S5-a | S5-b |
@@ -75,9 +88,11 @@ S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz) + /camera/front/c
 |---|---|---|
 | ΔRX (bytes/s) | `/proc/net/dev` 1초 간격 샘플링, 60s 측정 창 평균 | Laptop B NIC |
 | 메시지 드롭률 | subscriber 60s 수신 카운트 vs expected(Hz×60) | Laptop B |
-| E2E latency p50/p95/p99 | header.stamp 기반, 측정 창 동안 메시지마다 sub.log에 기록 후 후처리, PTP 동기화 전제 | Laptop B subscriber 내장 |
+| E2E latency p50/p95/p99 | header.stamp 기반, 측정 창 동안 메시지마다 sub.log에 기록 후 후처리, chrony 동기화 전제 | Laptop B subscriber 내장 |
 | 시스템 CPU 사용률 (%) | `/proc/stat` idle 델타 기반 1초 간격 샘플링, 모든 조건에서 측정 | Laptop B 전체 시스템 |
 | 시스템 메모리 사용량 (KB) | `/proc/meminfo` MemTotal−MemAvailable 1초 간격 샘플링 | Laptop B 전체 시스템 |
+
+CPU·메모리는 특정 observer 프로세스의 RSS만 보는 것이 아니라 Laptop B 전체 시스템 사용량을 측정한다. 따라서 분석 시 baseline 대비 증가량(ΔCPU, ΔMem)을 사용한다.
 
 ---
 
@@ -100,19 +115,21 @@ sudo tshark -i eth0 -f "udp" -T fields -e ip.dst -c 30
 # 개별 IP 주소(unicast)가 출력되면 확인 완료
 ```
 
-### 5.3 PTP 동기화
+### 5.3 chrony 기반 Laptop A 강제 동기화
+
+실험 스크립트는 Laptop A를 chrony server, Laptop B를 chrony client로 사용한다.
+Laptop B는 각 condition 시작 전에 기존 NTP source를 offline 처리하고 Laptop A만 online source로 둔다.
+
+확인 명령:
 
 ```bash
-# Laptop A (Master)
-sudo ptp4l -i eth0 -m --slave_only 0
-
-# Laptop B (Slave)
-sudo ptp4l -i eth0 -s -m
-sudo phc2sys -s eth0 -w -m
-
-# 동기화 품질 확인 (offset < ±1μs 목표)
-sudo ptp4l -i eth0 2>&1 | grep "master offset"
+# Laptop B
+chronyc sources -n
+chronyc tracking
 ```
+
+정상 상태는 `chronyc sources -n`에서 Laptop A IP 앞에 `^*`가 붙고, `Last offset`의 절댓값이 1ms 미만인 상태다.
+E2E latency 분석은 이 조건이 만족된 run만 사용한다.
 
 ---
 
@@ -121,31 +138,39 @@ sudo ptp4l -i eth0 2>&1 | grep "master offset"
 ```
 [사전]
 1. 환경 변수 설정 (CPU governor, RMW, DOMAIN_ID)
-2. PTP 동기화 확인 (offset < ±1μs)
+2. Laptop A chrony server 준비
+3. Laptop B chrony client 준비
+
+[Condition 시작 시]
+4. Laptop B에서 Laptop A를 chrony source로 강제 선택
+5. selected source == Laptop A, |offset| < 1ms 확인
 
 [Laptop B]
-3. Observer 도구 실행 (백그라운드)        ← baseline이면 skip
+6. Observer 도구 실행 (백그라운드)        ← baseline이면 skip
    - ros2 topic hz, ros2 bag record, rp topic hz, rp bag record
    - rp run은 DDS participant 생성 전(discovery 단계)부터 프로빙해야 하므로
      publisher보다 먼저 실행
 
 [Laptop A]
-4. Publisher 실행 (WiFi 동기화 신호 수신 후)
+7. Publisher 실행 (WiFi 동기화 신호 수신 후)
 
 [Laptop B]
-5. Subscriber 백그라운드 실행
+8. Subscriber 백그라운드 실행
    → 내부 10s warm-up 자동 시작 (DDS discovery + observer 연결 대기)
-6. 10s warm-up 대기 후 /proc/net/dev 샘플링 시작 (1초 간격, 백그라운드)
+9. 10s warm-up 대기 후 /proc/net/dev, CPU, memory 샘플링 시작 (1초 간격, 백그라운드)
    → t=10s: 측정 창 시작 (자동)
    → t=70s: FINAL 출력 후 subscriber 자동 종료
 
 [완료]
-7. Subscriber 프로세스 종료 확인 → run 완료
-8. 백그라운드 프로세스 종료 (netdev 샘플링, observer 도구, publisher)
+10. Subscriber 프로세스 종료 확인 → run 완료
+11. 백그라운드 프로세스 종료 (sampler, observer 도구, publisher)
    - WiFi 동기화: B → A "STOP" 신호 → A publisher 종료
-9. 결과 저장 (sub.log, netdev.log, obs.log, cpu_mem.log)
-10. 10s 대기 후 다음 run
+   - B는 run에서 시작한 process group만 종료해 다른 ROS 프로세스 오염 방지
+12. 결과 저장 (sub.log, netdev.log, obs.log, cpu_mem.log)
+13. 10s 대기 후 다음 run
 ```
+
+clock sync/check는 매 run이 아니라 각 condition 시작 전에 수행한다. run마다 동기화하면 실험 시간이 과도하게 늘고, scenario마다 한 번만 동기화하면 장시간 실행 중 clock drift가 latency에 누적될 수 있기 때문이다.
 
 ### 6.1 실행 명령
 
@@ -188,7 +213,7 @@ results/exp1/
 bags/exp1/
 ├── S1/
 │   ├── rosbag2/    run01~10/ rosbag2/ (mcap)
-│   └── rp_bag/     run01~10/ rp/ (mcap)
+│   └── rp_bag/     run01~10/ rp.mcap
 └── ...
 ```
 
@@ -199,7 +224,7 @@ bags/exp1/
 | sub.log | subscriber stdout: `LAT <ms>` per message + `FINAL` 드롭률 |
 | netdev.log | 1초 간격 NIC rx_bytes (`timestamp_ms rx_bytes`) |
 | obs.log | observer 도구 stdout/stderr |
-| cpu_mem.log | observer PID별 1초 간격 CPU%·RSS (`timestamp_ms label cpu% rss_kb`) |
+| cpu_mem.log | 1초 간격 전체 시스템 CPU%·메모리 사용량 (`timestamp_ms cpu% used_kb`) |
 
 ---
 
@@ -263,3 +288,13 @@ print(f'mem avg={sum(mems)/len(mems):.0f}KB max={max(mems):.0f}KB')
 # Δcpu = cpu%(condition) - cpu%(baseline)
 # Δmem = used_kb(condition) - used_kb(baseline)
 ```
+
+CPU·메모리 분석은 절대값보다 baseline 대비 증가량을 우선 사용한다. Laptop B의 background load가 완전히 0이 아니므로 조건별 평균값만 직접 비교하면 시스템 상태 차이가 섞일 수 있다.
+
+권장 보고 방식:
+
+| 비교 | 보고 지표 |
+|---|---|
+| `topic_hz` vs `rp_hz` | ΔRX, Δdrop, Δlatency p95/p99, ΔCPU avg/max, ΔMem avg/max |
+| `rosbag2` vs `rp_bag` | ΔRX, Δdrop, Δlatency p95/p99, ΔCPU avg/max, ΔMem avg/max |
+| 각 조건 vs baseline | observer가 원본 workload에 추가한 부하 |
