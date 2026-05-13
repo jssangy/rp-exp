@@ -22,7 +22,14 @@ export ROS_DOMAIN_ID=77
 cleanup() {
   echo "[pub_a] 종료"
 }
-trap cleanup EXIT TERM INT
+
+handle_signal() {
+  trap - INT TERM
+  exit 130
+}
+
+trap cleanup EXIT
+trap handle_signal INT TERM
 
 echo "[pub_a] ${SCENARIO} publisher 시작"
 

@@ -45,6 +45,7 @@ export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 SUDO_KEEPALIVE_PID=""
+CLEANED_UP=0
 
 start_sudo_keepalive() {
   echo "[setup] sudo 권한 확인 (실험 중 재입력 방지)"
@@ -54,7 +55,7 @@ start_sudo_keepalive() {
       sudo -n true 2>/dev/null || exit
       sleep 60
     done
-  ) &
+  ) >/dev/null 2>&1 &
   SUDO_KEEPALIVE_PID=$!
 }
 
@@ -98,10 +99,21 @@ stop_current() {
   fi
 }
 cleanup() {
+  [[ "${CLEANED_UP}" == "1" ]] && return
+  CLEANED_UP=1
   stop_current
   stop_sudo_keepalive
 }
+
+handle_signal() {
+  trap - INT TERM
+  echo ""
+  echo "[interrupt] 중단 요청 수신, 정리 중..."
+  exit 130
+}
+
 trap cleanup EXIT
+trap handle_signal INT TERM
 
 # ── 이벤트 기반 모드 ──────────────────────────────────────────────────────────
 
@@ -195,10 +207,9 @@ run_timer_based() {
     END_TS=$(( $(date +%s) + SCENARIO_WAIT ))
     while (( $(date +%s) < END_TS )); do
       REMAINING=$(( END_TS - $(date +%s) ))
-      printf "\r  대기 중... %4ds 남음 " "${REMAINING}"
+      echo "  대기 중... ${REMAINING}s 남음"
       sleep 5
     done
-    echo ""
 
     stop_current
     echo "[pub] ${SCENARIO} 완료  $(date '+%H:%M:%S')"

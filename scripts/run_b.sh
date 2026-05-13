@@ -50,6 +50,7 @@ NETDEV_PID=""
 CPU_MEM_PID=""
 PUBLISHER_STARTED=0
 STOP_SENT=0
+CLEANED_UP=0
 
 wait_for_rp_socket() {
   local timeout_decisec=${1:-100}
@@ -110,6 +111,9 @@ stop_rp_runtime() {
 }
 
 cleanup_on_exit() {
+  [[ "${CLEANED_UP}" == "1" ]] && return
+  CLEANED_UP=1
+
   if [[ "${PUBLISHER_STARTED}" == "1" && "${STOP_SENT}" == "0" && -n "${SYNC_HOST}" ]]; then
     echo "STOP" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
     STOP_SENT=1
@@ -122,7 +126,15 @@ cleanup_on_exit() {
   [[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" TERM 3
 }
 
+handle_signal() {
+  trap - INT TERM
+  echo ""
+  echo "[interrupt] run 중단 요청 수신"
+  exit 130
+}
+
 trap cleanup_on_exit EXIT
+trap handle_signal INT TERM
 
 # 시나리오별 설정
 SUB_LAUNCH=""

@@ -53,6 +53,7 @@ export SYNC_PORT
 export SYNC_ACK_PORT
 
 SUDO_KEEPALIVE_PID=""
+CLEANED_UP=0
 
 start_sudo_keepalive() {
   echo "[setup] sudo 권한 확인 (실험 중 재입력 방지)"
@@ -62,7 +63,7 @@ start_sudo_keepalive() {
       sudo -n true 2>/dev/null || exit
       sleep 60
     done
-  ) &
+  ) >/dev/null 2>&1 &
   SUDO_KEEPALIVE_PID=$!
 }
 
@@ -129,20 +130,21 @@ sync_clock_for_condition() {
                       | awk '$1 ~ /^\^\*/ {print $2; exit}')
     if [[ -n "${offset_sec}" ]]; then
       abs_offset_ms=$(awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; printf \"%.3f\", v*1000}")
-      printf "\r  [clock] 대기 중... %2ds  selected=%s offset=%s ms      " \
-        "${i}" "${selected_source:-?}" "${abs_offset_ms}"
+      if (( i == 1 || i % 5 == 0 )); then
+        echo "  [clock] wait=${i}s selected=${selected_source:-?} offset=${abs_offset_ms}ms"
+      fi
       if [[ "${selected_source}" == "${CHRONY_SERVER}" ]] && \
          awk "BEGIN{v=${offset_sec}+0; if(v<0)v=-v; exit !(v < 0.001)}"; then
-        echo ""
         echo "  [clock] 동기화 완료 (offset=${offset_sec} s)  $(date '+%H:%M:%S')"
         return 0
       fi
     else
-      printf "\r  [clock] 대기 중... %2ds  (서버 미연결)      " "${i}"
+      if (( i == 1 || i % 5 == 0 )); then
+        echo "  [clock] wait=${i}s server not connected"
+      fi
     fi
     sleep 1
   done
-  echo ""
   echo "  [ERROR] ${label}: 180s 내 동기화 실패 (selected=${selected_source:-?}, offset=${offset_sec:-?} s)"
   return 1
 }
@@ -154,8 +156,17 @@ restore_ntp() {
 }
 
 cleanup() {
+  [[ "${CLEANED_UP}" == "1" ]] && return
+  CLEANED_UP=1
   restore_ntp
   stop_sudo_keepalive
+}
+
+handle_signal() {
+  trap - INT TERM
+  echo ""
+  echo "[interrupt] 중단 요청 수신, 정리 중..."
+  exit 130
 }
 
 # 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
@@ -180,6 +191,7 @@ echo "════════════════════════�
 echo ""
 
 trap cleanup EXIT
+trap handle_signal INT TERM
 start_sudo_keepalive
 setup_env
 
