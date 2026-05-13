@@ -54,9 +54,10 @@ NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
 # Chrony server IP. Defaults to SYNC_HOST and can be overridden.
 CHRONY_SERVER=${CHRONY_SERVER:-${SYNC_HOST}}
 # Signed chrony offset acceptance window in seconds.
-# Default target: 0 < Last offset < 1ms.
-CHRONY_MIN_OFFSET_SEC=${CHRONY_MIN_OFFSET_SEC:-0}
-CHRONY_MAX_OFFSET_SEC=${CHRONY_MAX_OFFSET_SEC:-0.001}
+# For this E2E latency calculation, negative Last offset keeps B_recv - A_stamp positive.
+# Default target: -1ms < Last offset < 0.
+CHRONY_MIN_OFFSET_SEC=${CHRONY_MIN_OFFSET_SEC:--0.001}
+CHRONY_MAX_OFFSET_SEC=${CHRONY_MAX_OFFSET_SEC:-0}
 export NIC
 export SYNC_HOST
 export SYNC_PORT
