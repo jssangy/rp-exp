@@ -13,6 +13,12 @@
 
 set -euo pipefail
 
+normalize_tty() {
+  [[ -t 1 ]] && stty sane opost onlcr 2>/dev/null || true
+}
+
+normalize_tty
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
@@ -54,6 +60,7 @@ export SYNC_ACK_PORT
 
 SUDO_KEEPALIVE_PID=""
 CLEANED_UP=0
+CURRENT_RUN_PID=""
 
 start_sudo_keepalive() {
   echo "[setup] Checking sudo credentials for unattended execution"
@@ -72,6 +79,37 @@ stop_sudo_keepalive() {
     kill "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
     wait "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
     SUDO_KEEPALIVE_PID=""
+  fi
+}
+
+wait_pid_timeout() {
+  local pid=${1:?}
+  local timeout_s=${2:?}
+  local i
+
+  for i in $(seq 1 "${timeout_s}"); do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+stop_current_run() {
+  if [[ -n "${CURRENT_RUN_PID}" ]]; then
+    kill -INT -- "-${CURRENT_RUN_PID}" 2>/dev/null || true
+    kill -INT "${CURRENT_RUN_PID}" 2>/dev/null || true
+    wait_pid_timeout "${CURRENT_RUN_PID}" 8 || {
+      kill -TERM -- "-${CURRENT_RUN_PID}" 2>/dev/null || true
+      kill -TERM "${CURRENT_RUN_PID}" 2>/dev/null || true
+      wait_pid_timeout "${CURRENT_RUN_PID}" 3 || {
+        kill -KILL -- "-${CURRENT_RUN_PID}" 2>/dev/null || true
+        kill -KILL "${CURRENT_RUN_PID}" 2>/dev/null || true
+      }
+    }
+    wait "${CURRENT_RUN_PID}" 2>/dev/null || true
+    CURRENT_RUN_PID=""
   fi
 }
 
@@ -158,12 +196,15 @@ restore_ntp() {
 cleanup() {
   [[ "${CLEANED_UP}" == "1" ]] && return
   CLEANED_UP=1
+  normalize_tty
+  stop_current_run
   restore_ntp
   stop_sudo_keepalive
 }
 
 handle_signal() {
   trap - INT TERM
+  normalize_tty
   echo ""
   echo "[interrupt] stop requested; cleaning up..."
   exit 130
@@ -195,6 +236,7 @@ trap handle_signal INT TERM
 start_sudo_keepalive
 setup_env
 
+normalize_tty
 echo ""
 echo "Pre-flight check:"
 echo "  1) Start run_exp1_pub.sh --sync <B-wlan-IP> on Laptop A first"
@@ -227,7 +269,16 @@ for SCENARIO in "${SCENARIOS[@]}"; do
     for i in $(seq 1 "${N_RUNS}"); do
       RUN_LABEL="$(printf '%02d' ${i})/${N_RUNS}"
       echo "    run ${RUN_LABEL}  ($(date '+%H:%M:%S'))"
-      if ! bash "${SCRIPT_DIR}/run_b.sh" "${SCENARIO}" "${CONDITION}" "${i}"; then
+      setsid bash "${SCRIPT_DIR}/run_b.sh" "${SCENARIO}" "${CONDITION}" "${i}" &
+      CURRENT_RUN_PID=$!
+      if wait "${CURRENT_RUN_PID}"; then
+        CURRENT_RUN_PID=""
+      else
+        RUN_STATUS=$?
+        if [[ "${RUN_STATUS}" == "130" || "${RUN_STATUS}" == "143" ]]; then
+          exit "${RUN_STATUS}"
+        fi
+        CURRENT_RUN_PID=""
         echo "    [WARN] run ${RUN_LABEL} failed; continuing"
         FAILED+=("${SCENARIO}/${CONDITION}/run$(printf '%02d' ${i})")
       fi

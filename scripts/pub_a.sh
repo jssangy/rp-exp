@@ -7,6 +7,12 @@
 
 set -euo pipefail
 
+normalize_tty() {
+  [[ -t 1 ]] && stty sane opost onlcr 2>/dev/null || true
+}
+
+normalize_tty
+
 SCENARIO=${1:?usage: $0 <scenario>}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
@@ -20,11 +26,13 @@ export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 export ROS_DOMAIN_ID=77
 
 cleanup() {
+  normalize_tty
   echo "[pub_a] stopped"
 }
 
 handle_signal() {
   trap - INT TERM
+  normalize_tty
   exit 130
 }
 

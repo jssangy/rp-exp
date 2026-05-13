@@ -15,6 +15,12 @@
 
 set -euo pipefail
 
+normalize_tty() {
+  [[ -t 1 ]] && stty sane opost onlcr 2>/dev/null || true
+}
+
+normalize_tty
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
@@ -101,12 +107,14 @@ stop_current() {
 cleanup() {
   [[ "${CLEANED_UP}" == "1" ]] && return
   CLEANED_UP=1
+  normalize_tty
   stop_current
   stop_sudo_keepalive
 }
 
 handle_signal() {
   trap - INT TERM
+  normalize_tty
   echo ""
   echo "[interrupt] stop requested; cleaning up..."
   exit 130
@@ -128,6 +136,7 @@ run_event_driven() {
   start_sudo_keepalive
   setup_env
 
+  normalize_tty
   echo ""
   echo " Waiting for commands from Laptop B. Start run_exp1_sub.sh --sync <A-IP> on Laptop B."
   echo ""
@@ -188,6 +197,7 @@ run_timer_based() {
   start_sudo_keepalive
   setup_env
 
+  normalize_tty
   echo ""
   echo " Start run_exp1_sub.sh on Laptop B."
   echo " Press Enter on both laptops at the same time."

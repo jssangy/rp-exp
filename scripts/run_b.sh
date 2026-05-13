@@ -13,6 +13,12 @@
 
 set -euo pipefail
 
+normalize_tty() {
+  [[ -t 1 ]] && stty sane opost onlcr 2>/dev/null || true
+}
+
+normalize_tty
+
 # Source ROS when it is not already available.
 set +u
 if ! command -v ros2 &>/dev/null; then
@@ -113,6 +119,7 @@ stop_rp_runtime() {
 cleanup_on_exit() {
   [[ "${CLEANED_UP}" == "1" ]] && return
   CLEANED_UP=1
+  normalize_tty
 
   if [[ "${PUBLISHER_STARTED}" == "1" && "${STOP_SENT}" == "0" && -n "${SYNC_HOST}" ]]; then
     echo "STOP" | nc -w5 "${SYNC_HOST}" "${SYNC_PORT}" 2>/dev/null || true
@@ -128,6 +135,7 @@ cleanup_on_exit() {
 
 handle_signal() {
   trap - INT TERM
+  normalize_tty
   echo ""
   echo "[interrupt] run stop requested"
   exit 130
