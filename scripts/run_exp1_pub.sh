@@ -44,6 +44,28 @@ set -u
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
+SUDO_KEEPALIVE_PID=""
+
+start_sudo_keepalive() {
+  echo "[setup] sudo 권한 확인 (실험 중 재입력 방지)"
+  sudo -v
+  (
+    while true; do
+      sudo -n true 2>/dev/null || exit
+      sleep 60
+    done
+  ) &
+  SUDO_KEEPALIVE_PID=$!
+}
+
+stop_sudo_keepalive() {
+  if [[ -n "${SUDO_KEEPALIVE_PID}" ]]; then
+    kill "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
+    wait "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
+    SUDO_KEEPALIVE_PID=""
+  fi
+}
+
 # ── 환경 설정 (CPU governor, chrony NTP 서버) ────────────────────────────────
 setup_env() {
   echo "[setup] CPU governor → performance"
@@ -75,7 +97,11 @@ stop_current() {
     PUB_PID=""
   fi
 }
-trap stop_current EXIT
+cleanup() {
+  stop_current
+  stop_sudo_keepalive
+}
+trap cleanup EXIT
 
 # ── 이벤트 기반 모드 ──────────────────────────────────────────────────────────
 
@@ -87,6 +113,7 @@ run_event_driven() {
   echo "════════════════════════════════════════════════"
   echo ""
 
+  start_sudo_keepalive
   setup_env
 
   echo ""
@@ -148,6 +175,7 @@ run_timer_based() {
   echo "════════════════════════════════════════════════"
   echo ""
 
+  start_sudo_keepalive
   setup_env
 
   echo ""

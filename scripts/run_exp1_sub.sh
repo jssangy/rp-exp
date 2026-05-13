@@ -52,6 +52,28 @@ export SYNC_HOST
 export SYNC_PORT
 export SYNC_ACK_PORT
 
+SUDO_KEEPALIVE_PID=""
+
+start_sudo_keepalive() {
+  echo "[setup] sudo 권한 확인 (실험 중 재입력 방지)"
+  sudo -v
+  (
+    while true; do
+      sudo -n true 2>/dev/null || exit
+      sleep 60
+    done
+  ) &
+  SUDO_KEEPALIVE_PID=$!
+}
+
+stop_sudo_keepalive() {
+  if [[ -n "${SUDO_KEEPALIVE_PID}" ]]; then
+    kill "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
+    wait "${SUDO_KEEPALIVE_PID}" 2>/dev/null || true
+    SUDO_KEEPALIVE_PID=""
+  fi
+}
+
 # ── 환경 설정 (CPU governor, chrony NTP 클라이언트) ──────────────────────────
 setup_env() {
   echo "[setup] CPU governor → performance"
@@ -130,6 +152,11 @@ restore_ntp() {
   fi
 }
 
+cleanup() {
+  restore_ntp
+  stop_sudo_keepalive
+}
+
 # 시간 추정 (run당 ~84s: 2s pub ready + 10s warmup + 60s measure + 2s stop + 10s sleep)
 SECS_PER_RUN=84
 TOTAL_SECS=$(( ${#SCENARIOS[@]} * 5 * N_RUNS * SECS_PER_RUN ))
@@ -151,8 +178,9 @@ fi
 echo "════════════════════════════════════════════════"
 echo ""
 
+start_sudo_keepalive
 setup_env
-trap restore_ntp EXIT
+trap cleanup EXIT
 
 echo ""
 echo "사전 확인:"
