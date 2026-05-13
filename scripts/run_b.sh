@@ -42,7 +42,52 @@ SYNC_ACK_PORT=${SYNC_ACK_PORT:-55002}
 
 CLK_TCK=$(getconf CLK_TCK)
 
+wait_pid_timeout() {
+  local pid=${1:?}
+  local timeout_s=${2:?}
+  local i
+
+  for i in $(seq 1 "${timeout_s}"); do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+stop_pid_gracefully() {
+  local pid=${1:?}
+  local signal=${2:-TERM}
+  local timeout_s=${3:-5}
+
+  kill "-${signal}" "-${pid}" 2>/dev/null || true
+  kill "-${signal}" "${pid}" 2>/dev/null || true
+  wait_pid_timeout "${pid}" "${timeout_s}" || {
+    kill -KILL "-${pid}" 2>/dev/null || true
+    kill -KILL "${pid}" 2>/dev/null || true
+  }
+  wait "${pid}" 2>/dev/null || true
+}
+
+stop_rp_runtime() {
+  local timeout_s=${1:-5}
+
+  # `rp run` normally runs as root via sudo. Use non-interactive sudo here so
+  # cleanup never blocks on a password prompt.
+  sudo -n pkill -INT -f "rp run" 2>/dev/null || pkill -INT -f "rp run" 2>/dev/null || true
+  if [[ -n "${RP_PID}" ]]; then
+    wait_pid_timeout "${RP_PID}" "${timeout_s}" || true
+  else
+    sleep "${timeout_s}"
+  fi
+  sudo -n pkill -TERM -f "rp run" 2>/dev/null || pkill -TERM -f "rp run" 2>/dev/null || true
+  sleep 1
+  sudo -n pkill -KILL -f "rp run" 2>/dev/null || pkill -KILL -f "rp run" 2>/dev/null || true
+}
+
 # 시나리오별 설정
+SUB_LAUNCH=""
 case ${SCENARIO} in
   S1)  SUB_NODE="s1_sub";        TOPIC="/cmd_vel" ;;
   S2)  SUB_NODE="s2_sub";        TOPIC="/imu" ;;
@@ -51,8 +96,8 @@ case ${SCENARIO} in
   S3c) SUB_NODE="s3_points_sub"; TOPIC="/points" ;;
   S4a) SUB_NODE="s4a_sub";       TOPIC="/image_raw/compressed" ;;
   S4b) SUB_NODE="s4_image_sub";  TOPIC="/depth/image_raw" ;;
-  S5a) SUB_NODE="s5a_sub";       TOPIC="/image_raw/compressed" ;;
-  S5b) SUB_NODE="s5b_sub";       TOPIC="/points" ;;
+  S5a) SUB_NODE="";              SUB_LAUNCH="s5a_sub.launch.py"; TOPIC="/image_raw/compressed" ;;
+  S5b) SUB_NODE="";              SUB_LAUNCH="s5b_sub.launch.py"; TOPIC="/points" ;;
   *) echo "[ERROR] unknown scenario: ${SCENARIO}"; exit 1 ;;
 esac
 
@@ -74,27 +119,27 @@ RP_PID=""
 
 case ${CONDITION} in
   topic_hz)
-    ros2 topic hz "${TOPIC}" > "${OUTDIR}/obs.log" 2>&1 &
+    setsid ros2 topic hz "${TOPIC}" > "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rosbag2)
     mkdir -p "${BAGDIR}"
-    ros2 bag record ${BAG_TOPICS} --storage mcap -o "${BAGDIR}/rosbag2" > "${OUTDIR}/obs.log" 2>&1 &
+    setsid ros2 bag record ${BAG_TOPICS} --storage mcap -o "${BAGDIR}/rosbag2" > "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_hz)
-    sudo rp run > "${OUTDIR}/obs.log" 2>&1 &
+    setsid sudo -E rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
     sleep 1  # rp run이 소켓을 열 때까지 대기
-    rp topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
+    setsid rp topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_bag)
     mkdir -p "${BAGDIR}"
-    sudo rp run > "${OUTDIR}/obs.log" 2>&1 &
+    setsid sudo -E rp run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
     sleep 1  # rp run이 소켓을 열 때까지 대기
-    rp bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
+    setsid rp bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   baseline)
@@ -115,7 +160,11 @@ else
 fi
 
 # ── Step 3: subscriber 백그라운드 실행 (10s warmup 내장) ──────────────────────
-ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
+if [[ -n "${SUB_LAUNCH}" ]]; then
+  ros2 launch test "${SUB_LAUNCH}" > "${OUTDIR}/sub.log" &
+else
+  ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
+fi
 SUB_PID=$!
 
 # ── Step 4: warmup 대기 후 netdev + CPU/메모리 샘플링 시작 ───────────────────
@@ -168,11 +217,24 @@ if [[ -n "${SYNC_HOST}" ]]; then
 fi
 
 # ── Step 7: 백그라운드 프로세스 정리 ─────────────────────────────────────────
-[[ -n "${OBS_PID}"     ]] && kill "${OBS_PID}"     2>/dev/null || true
-[[ -n "${RP_PID}"      ]] && kill "${RP_PID}"       2>/dev/null || true
-[[ -n "${CPU_MEM_PID}" ]] && kill "${CPU_MEM_PID}"  2>/dev/null || true
+case ${CONDITION} in
+  rp_hz|rp_bag)
+    # rp CLI sends TopicHzStop/BagStop only on Ctrl-C (SIGINT), not SIGTERM.
+    [[ -n "${OBS_PID}" ]] && stop_pid_gracefully "${OBS_PID}" INT 10
+    stop_rp_runtime 5
+    ;;
+  rosbag2)
+    # Let rosbag2 close metadata/storage cleanly.
+    [[ -n "${OBS_PID}" ]] && stop_pid_gracefully "${OBS_PID}" INT 10
+    ;;
+  topic_hz)
+    [[ -n "${OBS_PID}" ]] && stop_pid_gracefully "${OBS_PID}" INT 5
+    ;;
+esac
+
+[[ -n "${CPU_MEM_PID}" ]] && stop_pid_gracefully "${CPU_MEM_PID}" TERM 3
 kill "${NETDEV_PID}" 2>/dev/null || true
-wait 2>/dev/null || true
+wait "${NETDEV_PID}" 2>/dev/null || true
 
 # ── Step 8: 잔존 ROS 2 프로세스 전체 강제 종료 ────────────────────────────────
 pkill -SIGTERM -f "ros2 run"    2>/dev/null || true
@@ -181,7 +243,7 @@ pkill -SIGTERM -f "ros2 topic"  2>/dev/null || true
 pkill -SIGTERM -f "ros2 bag"    2>/dev/null || true
 pkill -SIGTERM -f "rp topic"                          2>/dev/null || true
 pkill -SIGTERM -f "rp bag"                            2>/dev/null || true
-[[ -n "${RP_PID}" ]] && sudo pkill -SIGTERM -f "rp run" 2>/dev/null || true
+[[ -n "${RP_PID}" ]] && (sudo -n pkill -SIGTERM -f "rp run" 2>/dev/null || pkill -SIGTERM -f "rp run" 2>/dev/null || true)
 sleep 2
 pkill -SIGKILL -f "ros2 run"                          2>/dev/null || true
 pkill -SIGKILL -f "ros2 launch"                       2>/dev/null || true
@@ -189,7 +251,7 @@ pkill -SIGKILL -f "ros2 topic"                        2>/dev/null || true
 pkill -SIGKILL -f "ros2 bag"                          2>/dev/null || true
 pkill -SIGKILL -f "rp topic"                          2>/dev/null || true
 pkill -SIGKILL -f "rp bag"                            2>/dev/null || true
-[[ -n "${RP_PID}" ]] && sudo pkill -SIGKILL -f "rp run" 2>/dev/null || true
+[[ -n "${RP_PID}" ]] && (sudo -n pkill -SIGKILL -f "rp run" 2>/dev/null || pkill -SIGKILL -f "rp run" 2>/dev/null || true)
 ros2 daemon stop 2>/dev/null || true
 
 echo "[run_b] run${RUN} done → ${OUTDIR}"

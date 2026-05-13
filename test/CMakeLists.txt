@@ -54,20 +54,6 @@ ament_target_dependencies(s4_image_pub ${DEPS})
 add_executable(s4_image_sub src/s4_image_sub.cpp)
 ament_target_dependencies(s4_image_sub ${DEPS})
 
-# S5-a — 실내 AMR (/cmd_vel + /imu + /scan + /image_raw/compressed)
-add_executable(s5a_pub src/s5a_pub.cpp)
-ament_target_dependencies(s5a_pub ${DEPS})
-
-add_executable(s5a_sub src/s5a_sub.cpp)
-ament_target_dependencies(s5a_sub ${DEPS})
-
-# S5-b — 로보택시 (/cmd_vel + /imu + /points + front/side compressed + /depth/image_raw)
-add_executable(s5b_pub src/s5b_pub.cpp)
-ament_target_dependencies(s5b_pub ${DEPS})
-
-add_executable(s5b_sub src/s5b_sub.cpp)
-ament_target_dependencies(s5b_sub ${DEPS})
-
 install(TARGETS
   s1_pub
   s1_sub
@@ -81,10 +67,6 @@ install(TARGETS
   s4a_sub
   s4_image_pub
   s4_image_sub
-  s5a_pub
-  s5a_sub
-  s5b_pub
-  s5b_sub
   DESTINATION lib/${PROJECT_NAME}
 )
 

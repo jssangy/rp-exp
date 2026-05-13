@@ -3,7 +3,7 @@ from launch_ros.actions import Node
 
 
 # S5-b pub: 로보택시
-# /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(10Hz)
+# /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz)
 # + /camera/front/compressed(30Hz) + /camera/side/compressed(30Hz)
 # + /depth/image_raw(30Hz)
 def generate_launch_description():
