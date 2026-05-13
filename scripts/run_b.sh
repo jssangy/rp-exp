@@ -41,6 +41,20 @@ SYNC_PORT=${SYNC_PORT:-55001}
 SYNC_ACK_PORT=${SYNC_ACK_PORT:-55002}
 
 CLK_TCK=$(getconf CLK_TCK)
+RP_BIN=${RP_BIN:-$(command -v rp)}
+RP_SOCKET=${RP_SOCKET:-/tmp/ros2probe.sock}
+
+wait_for_rp_socket() {
+  local timeout_decisec=${1:-100}
+  local i
+
+  for i in $(seq 1 "${timeout_decisec}"); do
+    [[ -S "${RP_SOCKET}" ]] && return 0
+    sleep 0.1
+  done
+  echo "[ERROR] ros2probe command socket not ready: ${RP_SOCKET}" >&2
+  return 1
+}
 
 wait_pid_timeout() {
   local pid=${1:?}
@@ -128,18 +142,18 @@ case ${CONDITION} in
     OBS_PID=$!
     ;;
   rp_hz)
-    setsid sudo -E rp run > "${OUTDIR}/obs.log" 2>&1 &
+    setsid sudo "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
-    sleep 1  # rp run이 소켓을 열 때까지 대기
-    setsid rp topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
+    wait_for_rp_socket 100
+    setsid "${RP_BIN}" topic hz "${TOPIC}" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   rp_bag)
     mkdir -p "${BAGDIR}"
-    setsid sudo -E rp run > "${OUTDIR}/obs.log" 2>&1 &
+    setsid sudo "${RP_BIN}" run > "${OUTDIR}/obs.log" 2>&1 &
     RP_PID=$!
-    sleep 1  # rp run이 소켓을 열 때까지 대기
-    setsid rp bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
+    wait_for_rp_socket 100
+    setsid "${RP_BIN}" bag record ${BAG_TOPICS} -o "${BAGDIR}/rp" >> "${OUTDIR}/obs.log" 2>&1 &
     OBS_PID=$!
     ;;
   baseline)
