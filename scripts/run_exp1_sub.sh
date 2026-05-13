@@ -149,7 +149,7 @@ sync_clock_for_condition() {
 
 restore_ntp() {
   if [[ -n "${CHRONY_SERVER}" ]]; then
-    sudo chronyc online > /dev/null 2>&1 || true
+    sudo -n chronyc online > /dev/null 2>&1 || true
   fi
 }
 
@@ -187,7 +187,11 @@ echo ""
 echo "사전 확인:"
 echo "  1) Laptop A에서 run_exp1_pub.sh --sync <B-wlan-IP> 실행 후 대기 중"
 echo ""
-read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
+if [[ -n "${SYNC_HOST}" ]]; then
+  echo "이벤트 기반 동기화 모드: Enter 대기 없이 바로 시작합니다."
+else
+  read -rp "준비 완료 후 Enter (Laptop A와 동시에)..."
+fi
 
 START_TIME=$(date +%s)
 FAILED=()

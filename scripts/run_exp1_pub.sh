@@ -117,10 +117,8 @@ run_event_driven() {
   setup_env
 
   echo ""
-  echo " B의 명령을 대기합니다. Laptop B에서 run_exp1_sub.sh 실행 후"
-  echo " 양쪽 동시에 Enter를 눌러 시작하세요."
+  echo " B의 명령을 대기합니다. Laptop B에서 run_exp1_sub.sh --sync <A-IP>를 실행하세요."
   echo ""
-  read -rp "준비 완료 후 Enter..."
 
   while true; do
     CMD=$(nc -l -p "${SYNC_PORT}" 2>/dev/null || true)
