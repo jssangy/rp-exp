@@ -58,11 +58,11 @@ Publisher          Original Subscriber
 | S4-a | /image_raw/compressed | 30 Hz | ~150 KB | ~36 Mbps |
 | S4-b | /depth/image_raw | 30 Hz | ~600 KB | ~147 Mbps |
 | S5-a | 복합 실내 AMR | — | — | ~50 Mbps |
-| S5-b | 복합 자율주행 | — | — | ~655 Mbps |
+| S5-b | 복합 자율주행 고대역 | — | — | ~830 Mbps |
 
 S5-a 구성: /cmd_vel(20Hz) + /imu(200Hz) + /scan(40Hz) + /image_raw/compressed(30Hz)
 
-S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points 64ch(20Hz) + /camera/front/compressed(30Hz) + /camera/side/compressed(30Hz) + /depth/image_raw(30Hz)
+S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points/front 64ch(20Hz) + /points/rear 16ch(20Hz) + /camera/front/compressed(30Hz) + /camera/left/compressed(30Hz) + /camera/right/compressed(30Hz) + /camera/rear/compressed(30Hz) + /depth/image_raw(30Hz)
 
 S5 publisher/subscriber는 단일 복합 노드가 아니라 launch 파일로 S1~S4 개별 노드를 조합해 실행한다. 이는 실제 로봇 시스템처럼 여러 프로세스·여러 DDS participant가 동시에 존재하는 상황을 재현하기 위함이다.
 
@@ -71,9 +71,9 @@ S5 publisher/subscriber는 단일 복합 노드가 아니라 launch 파일로 S1
 | 조건 | S1~S4 | S5-a | S5-b |
 |---|---|---|---|
 | A. baseline | — | — | — |
-| B. topic hz | `ros2 topic hz /<topic>` | `ros2 topic hz /image_raw/compressed` | `ros2 topic hz /points` |
+| B. topic hz | `ros2 topic hz /<topic>` | `ros2 topic hz /image_raw/compressed` | `ros2 topic hz /points/front` |
 | C. rosbag2 | `ros2 bag record /<topic>` | `ros2 bag record --all` | `ros2 bag record --all` |
-| D. rp topic hz | `rp topic hz /<topic>` | `rp topic hz /image_raw/compressed` | `rp topic hz /points` |
+| D. rp topic hz | `rp topic hz /<topic>` | `rp topic hz /image_raw/compressed` | `rp topic hz /points/front` |
 | E. rp bag record | `rp bag record /<topic>` | `rp bag record --all` | `rp bag record --all` |
 
 **반복 횟수**: 조건당 10회

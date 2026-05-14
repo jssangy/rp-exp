@@ -155,7 +155,7 @@ case ${SCENARIO} in
   S4a) SUB_NODE="s4a_sub";       TOPIC="/image_raw/compressed" ;;
   S4b) SUB_NODE="s4_image_sub";  TOPIC="/depth/image_raw" ;;
   S5a) SUB_NODE="";              SUB_LAUNCH="s5a_sub.launch.py"; TOPIC="/image_raw/compressed" ;;
-  S5b) SUB_NODE="";              SUB_LAUNCH="s5b_sub.launch.py"; TOPIC="/points" ;;
+  S5b) SUB_NODE="";              SUB_LAUNCH="s5b_sub.launch.py"; TOPIC="/points/front" ;;
   *) echo "[ERROR] unknown scenario: ${SCENARIO}"; exit 1 ;;
 esac
 
@@ -225,9 +225,9 @@ fi
 
 # Step 3: start subscriber in the background. The subscriber includes a 10s warmup.
 if [[ -n "${SUB_LAUNCH}" ]]; then
-  setsid ros2 launch test "${SUB_LAUNCH}" > "${OUTDIR}/sub.log" &
+  setsid ros2 launch test "${SUB_LAUNCH}" > "${OUTDIR}/sub.log" 2>&1 &
 else
-  setsid ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" &
+  setsid ros2 run test "${SUB_NODE}" > "${OUTDIR}/sub.log" 2>&1 &
 fi
 SUB_PID=$!
 

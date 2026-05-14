@@ -197,23 +197,23 @@ Intel RealSense, Microsoft Azure Kinect 기반 실내 AMR 로컬라이제이션 
 > **총 추정 대역폭 계산**:
 > S1(~0.03 Mbps) + S2(~0.72 Mbps) + S3-a(~13.8 Mbps) + S4-a(~36 Mbps) ≈ ~50 Mbps
 
-### S5-b — 고성능 자율주행 플랫폼 (로보택시)
+### S5-b — 고성능 자율주행 플랫폼 (로보택시, 고대역)
 
 | 항목 | 값 |
 |---|---|
-| 구성 | S1 (/cmd_vel, 20 Hz) + S2 (/imu, 200 Hz) + S3-c (/points 64ch, 20 Hz) + S4-a × 2 (/image_raw/compressed 전방·측면, 30 Hz) + S4-b (/depth/image_raw, 30 Hz) |
-| 활성 GID 수 | 6 |
-| 총 추정 대역폭 | ~655 Mbps |
+| 구성 | S1 (/cmd_vel, 20 Hz) + S2 (/imu, 200 Hz) + /points/front 64ch(20 Hz) + /points/rear 16ch(20 Hz) + S4-a × 4 (front/left/right/rear compressed, 30 Hz) + S4-b (/depth/image_raw, 30 Hz) |
+| 활성 GID 수 | 9 |
+| 총 추정 대역폭 | ~830 Mbps |
 | 대표 플랫폼 | Autoware 실차, Apollo 배포 플랫폼 |
-| 실험 목적 | 고대역폭·다중 DATA_FRAG 동시 처리 시 RtpsProcessor 및 eBPF 파이프라인 부하 측정 |
-| 구간 분류 | **현실 재현** (GbE 여유 ~345 Mbps 잔여) |
+| 실험 목적 | GbE 한계에 가까운 고대역폭·다중 DATA_FRAG 동시 처리 시 observer effect와 RtpsProcessor/eBPF 파이프라인 부하 측정 |
+| 구간 분류 | **현실 재현** (GbE 여유 ~170 Mbps 잔여) |
 
 > **총 추정 대역폭 계산**:
-> S1(~0.03 Mbps) + S2(~0.72 Mbps) + S3-c(~435 Mbps)
-> + S4-a × 2(~72 Mbps) + S4-b(~147 Mbps) ≈ ~655 Mbps
+> S1(~0.03 Mbps) + S2(~0.72 Mbps) + /points/front 64ch(~435 Mbps)
+> + /points/rear 16ch(~103 Mbps) + S4-a × 4(~144 Mbps) + S4-b(~147 Mbps) ≈ ~830 Mbps
 
-> **플랫폼 역할**: S3-c publisher는 Jetson 또는 노트북 담당.
-> S4-b publisher는 노트북 담당 (RPi는 CPU 한계).
+> **플랫폼 역할**: 64ch LiDAR와 depth publisher는 Jetson 또는 노트북 담당.
+> 16ch LiDAR와 compressed camera publisher는 센서별 프로세스로 분리한다.
 
 ---
 
@@ -229,6 +229,6 @@ Intel RealSense, Microsoft Azure Kinect 기반 실내 AMR 로컬라이제이션 
 | S4-a | /image_raw/compressed | CompressedImage | 30 Hz | ~150 KB | ~36 Mbps | ✓ | ✓ | 
 | S4-b | /depth/image_raw | Image | 30 Hz | ~600 KB | ~147 Mbps | ✓ | ✓ | 
 | S5-a | /cmd_vel + /imu + /scan + /image_raw/compressed | — | 20/200/40/30 Hz | — | ~50 Mbps | ✓ | ✓ | 
-| S5-b | /cmd_vel + /imu + /points + /image_raw/compressed×2 + /depth/image_raw | — | 20/200/20/30/30 Hz | — | ~655 Mbps | ✓ | ✓ |
+| S5-b | /cmd_vel + /imu + /points/front + /points/rear + /camera/*/compressed×4 + /depth/image_raw | — | 20/200/20/30/30 Hz | — | ~830 Mbps | ✓ | ✓ |
 
 ---

@@ -81,7 +81,7 @@ ros2 launch test s5a_pub.launch.py
 ros2 launch test s5a_sub.launch.py
 ```
 
-### S5-b — 자율주행 복합
+### S5-b — 자율주행 고대역 복합
 ```bash
 ros2 launch test s5b_pub.launch.py
 ros2 launch test s5b_sub.launch.py
