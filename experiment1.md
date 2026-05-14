@@ -64,7 +64,23 @@ S5-a 구성: /cmd_vel(20Hz) + /imu(200Hz) + /scan(40Hz) + /image_raw/compressed(
 
 S5-b 구성: /cmd_vel(20Hz) + /imu(200Hz) + /points/front 64ch(20Hz) + /points/rear 16ch(20Hz) + /camera/front/compressed(30Hz) + /camera/left/compressed(30Hz) + /camera/right/compressed(30Hz) + /camera/rear/compressed(30Hz) + /depth/image_raw(30Hz)
 
+S5-b는 기존 약 655 Mbps 구성에서 약 830 Mbps 구성으로 강화했다. 목적은 baseline은 GbE에서 가능한 한 유지하면서, DDS subscriber를 추가하는 `ros2 topic hz /points/front` 및 `ros2 bag record --all` 조건에서 수신 경합과 drop rate 악화를 관측하기 위함이다. `rp topic hz`와 `rp bag record`는 DDS subscriber를 추가하지 않으므로 baseline에 가까운 RX와 drop rate를 유지하는지 확인한다.
+
 S5 publisher/subscriber는 단일 복합 노드가 아니라 launch 파일로 S1~S4 개별 노드를 조합해 실행한다. 이는 실제 로봇 시스템처럼 여러 프로세스·여러 DDS participant가 동시에 존재하는 상황을 재현하기 위함이다.
+
+S5-b 세부 구성:
+
+| 토픽 | 기반 노드 | 설정 | 추정 대역폭 |
+|---|---|---|---|
+| /cmd_vel | S1 | 20 Hz | ~0.03 Mbps |
+| /imu | S2 | 200 Hz | ~0.72 Mbps |
+| /points/front | S3-c remap | 64ch, 130,000 pts, 20 Hz | ~435 Mbps |
+| /points/rear | S3-b remap | 16ch, 30,000 pts, 20 Hz | ~103 Mbps |
+| /camera/front/compressed | S4-a remap | 150 KB, 30 Hz | ~36 Mbps |
+| /camera/left/compressed | S4-a remap | 150 KB, 30 Hz | ~36 Mbps |
+| /camera/right/compressed | S4-a remap | 150 KB, 30 Hz | ~36 Mbps |
+| /camera/rear/compressed | S4-a remap | 150 KB, 30 Hz | ~36 Mbps |
+| /depth/image_raw | S4-b | 640×480 16UC1, 30 Hz | ~147 Mbps |
 
 ### 3.2 관찰 도구 조건
 
@@ -77,6 +93,8 @@ S5 publisher/subscriber는 단일 복합 노드가 아니라 launch 파일로 S1
 | E. rp bag record | `rp bag record /<topic>` | `rp bag record --all` | `rp bag record --all` |
 
 **반복 횟수**: 조건당 10회
+
+`rosbag2` 조건은 MCAP storage plugin이 설치된 환경을 전제로 한다. 실행 명령은 `ros2 bag record ... --storage mcap`이며, plugin이 없으면 observer가 즉시 실패하므로 해당 run은 invalid로 처리한다.
 
 ---
 
@@ -145,6 +163,8 @@ sudo tshark -i eth0 -f "udp" -T fields -e ip.dst -c 30
 
 ### 6.1 실행 명령
 
+전체 실험 실행:
+
 ```bash
 # Laptop A
 ./scripts/run_exp1_pub.sh --sync <Laptop-B-wlan-IP>
@@ -152,6 +172,26 @@ sudo tshark -i eth0 -f "udp" -T fields -e ip.dst -c 30
 # Laptop B
 ./scripts/run_exp1_sub.sh --sync <Laptop-A-wlan-IP>
 ```
+
+현재 재실험에 필요한 최소 대상만 실행:
+
+```bash
+# Laptop A
+./scripts/run_exp1_pub.sh --sync <Laptop-B-wlan-IP>
+
+# Laptop B
+./scripts/run_exp1_needed_sub.sh --sync <Laptop-A-wlan-IP> --clean-targets
+```
+
+targeted rerun 스크립트는 다음만 실행한다.
+
+| 대상 | 조건 | 이유 |
+|---|---|---|
+| S1, S2, S3a, S3b, S3c, S4a, S4b | rosbag2 | 기존 rosbag2 run은 MCAP plugin 오류로 invalid |
+| S5-a | baseline, rp_hz, rp_bag, topic_hz, rosbag2 | S5 launch child stdout 설정 변경 후 drop rate 재수집 필요 |
+| S5-b | baseline, rp_hz, rp_bag, topic_hz, rosbag2 | S5-b workload가 약 830 Mbps로 변경되어 기존 결과와 비교 불가 |
+
+총 targeted rerun 수는 170 runs이다.
 
 `scripts/run_b.sh` — 단일 run 자동화 (run_exp1_sub.sh가 호출):
 
@@ -173,7 +213,7 @@ sudo tshark -i eth0 -f "udp" -T fields -e ip.dst -c 30
 ```
 results/exp1/
 ├── S1/
-│   ├── baseline/   run01~10/ (sub.log, netdev.log)
+│   ├── baseline/   run01~10/ (sub.log, netdev.log, cpu_mem.log)
 │   ├── topic_hz/   run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
 │   ├── rosbag2/    run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
 │   ├── rp_hz/      run01~10/ (sub.log, netdev.log, obs.log, cpu_mem.log)
@@ -192,10 +232,12 @@ bags/exp1/
 
 | 파일 | 내용 |
 |---|---|
-| sub.log | subscriber stdout: 5초 단위 수신 rate + `FINAL` 드롭률 |
+| sub.log | subscriber stdout/stderr: 5초 단위 수신 rate + `FINAL` 드롭률 |
 | netdev.log | 1초 간격 NIC rx_bytes (`timestamp_ms rx_bytes`) |
 | obs.log | observer 도구 stdout/stderr |
 | cpu_mem.log | 1초 간격 전체 시스템 CPU%·메모리 사용량 (`timestamp_ms cpu% used_kb`) |
+
+S5-a/S5-b는 여러 subscriber를 launch로 동시에 실행하므로 `sub.log` 안에 child node별 출력이 함께 기록된다. 각 child subscriber는 자신의 토픽에 대한 `FINAL [60s]: recv X / expected Y -> drop Z%` 라인을 출력한다. S5 drop rate 분석은 토픽별 FINAL 라인을 분리해 계산하며, 요약 보고 시 핵심 관찰 토픽은 S5-a `/image_raw/compressed`, S5-b `/points/front`로 둔다.
 
 ---
 
@@ -212,9 +254,11 @@ baseline 대비 증가량 = ΔRX(condition) - ΔRX(baseline)
 ### 8.2 드롭률
 
 ```
-sub.log에서 FINAL 라인 파싱:
+S1~S4는 sub.log에서 단일 FINAL 라인 파싱:
   "FINAL [60s]: recv X / expected Y → drop Z%"
 drop_rate = (expected - received) / expected × 100
+
+S5-a/S5-b는 launch child별 FINAL 라인을 모두 파싱해 토픽별 drop rate를 계산한다. `ros2 topic hz`와 `rp topic hz` 비교에서는 관찰 대상 토픽(S5-a `/image_raw/compressed`, S5-b `/points/front`)의 drop rate를 우선 보고하고, `bag --all` 비교에서는 모든 S5 구성 토픽의 drop rate와 최악값(max drop)을 함께 보고한다.
 ```
 
 ### 8.3 CPU / 메모리

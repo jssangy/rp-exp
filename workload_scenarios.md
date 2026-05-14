@@ -83,7 +83,7 @@
 > (x, y, z, intensity, ring, time = 22 B/pt).
 > 4-byte 정렬 패딩 적용 시 최대 32 B/pt.
 > 실험 전 실제 발행된 메시지의 `point_step` 값을
-> `ros2 topic echo --once /points`로 확인 후 최종 고정 권장.
+> `ros2 topic echo --once /points` 또는 S5-b remap 토픽(`/points/front`, `/points/rear`)으로 확인 후 최종 고정 권장.
 
 ### S3-a — 2D LiDAR
 
@@ -207,6 +207,24 @@ Intel RealSense, Microsoft Azure Kinect 기반 실내 AMR 로컬라이제이션 
 | 대표 플랫폼 | Autoware 실차, Apollo 배포 플랫폼 |
 | 실험 목적 | GbE 한계에 가까운 고대역폭·다중 DATA_FRAG 동시 처리 시 observer effect와 RtpsProcessor/eBPF 파이프라인 부하 측정 |
 | 구간 분류 | **현실 재현** (GbE 여유 ~170 Mbps 잔여) |
+
+S5-b는 drop rate 관측 가능성을 높이기 위해 GbE 한계에 가까운 고대역 구성으로 둔다. baseline부터 1GbE를 초과하면 observer effect가 아니라 workload 자체 포화가 되므로, front LiDAR는 64ch급, rear LiDAR는 16ch급으로 조합한다. 이 구성은 baseline 약 830 Mbps를 목표로 하며, `ros2 topic hz /points/front` 또는 `ros2 bag record --all`이 추가 DDS subscriber를 만들 때 원본 subscriber drop이 증가하는지 확인하기 위한 압박 구간이다.
+
+S5-b topic mapping:
+
+| 토픽 | 실행 노드 | remap/arguments | 역할 |
+|---|---|---|---|
+| /cmd_vel | s1_pub/s1_sub | 기본 | 제어 명령 |
+| /imu | s2_pub/s2_sub | 기본 | 고주기 저대역 센서 |
+| /points/front | s3_points_pub/s3_points_sub | `/points` remap, pub args `130000` | 주 LiDAR, observer 단일 토픽 |
+| /points/rear | s3_points_pub/s3_points_sub | `/points` remap, pub args `30000` | 후방 LiDAR |
+| /camera/front/compressed | s4a_pub/s4a_sub | `/image_raw/compressed` remap | 전방 카메라 |
+| /camera/left/compressed | s4a_pub/s4a_sub | `/image_raw/compressed` remap | 좌측 카메라 |
+| /camera/right/compressed | s4a_pub/s4a_sub | `/image_raw/compressed` remap | 우측 카메라 |
+| /camera/rear/compressed | s4a_pub/s4a_sub | `/image_raw/compressed` remap | 후방 카메라 |
+| /depth/image_raw | s4_image_pub/s4_image_sub | pub args `640 480 16UC1` | depth 카메라 |
+
+S5-b 관찰 조건에서 `topic_hz`와 `rp_hz`의 단일 대상 토픽은 `/points/front`로 고정한다. bag 조건은 실제 로그 수집 상황을 재현하기 위해 `--all`을 사용한다.
 
 > **총 추정 대역폭 계산**:
 > S1(~0.03 Mbps) + S2(~0.72 Mbps) + /points/front 64ch(~435 Mbps)
