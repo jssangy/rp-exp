@@ -21,12 +21,41 @@ ros2 daemon stop
 
 ## 실험 실행
 
+### Experiment 1
+
 ```bash
 # Laptop A (Publisher)
 ./scripts/run_exp1_pub.sh --sync <Laptop-B-wlan-IP>
 
 # Laptop B (Subscriber)
 ./scripts/run_exp1_sub.sh --sync <Laptop-A-wlan-IP>
+```
+
+### Experiment 3
+
+두 장비 모두 빌드 후 `install/setup.bash`를 source한 상태에서 실행한다.
+
+```bash
+# Publisher Host
+./scripts/run_exp3_pub.sh --sync <Receiver-IP>
+
+# Receiver Platform
+./scripts/run_exp3_sub.sh --sync <Publisher-IP> --platform <pc|rpi|jetson>
+```
+
+일부 시나리오만 짧게 확인할 때:
+
+```bash
+./scripts/run_exp3_sub.sh --sync <Publisher-IP> --platform pc --scenarios ST100 --runs 1
+```
+
+기본 설정:
+
+```text
+scenarios: ST100, ST500, ST1000
+conditions: baseline, rp_hz, topic_hz
+runs: 10
+results: results/exp3/<platform>/<scenario>/<condition>/runXX/
 ```
 
 ---
