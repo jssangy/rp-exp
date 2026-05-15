@@ -134,6 +134,7 @@ handle_signal() {
   normalize_tty
   echo ""
   echo "[interrupt] stop requested; cleaning up..."
+  cleanup
   exit 130
 }
 
@@ -176,17 +177,21 @@ for SCENARIO in "${SCENARIOS[@]}"; do
     for i in $(seq 1 "${N_RUNS}"); do
       RUN_LABEL="$(printf '%02d' "${i}")/${N_RUNS}"
       echo "    run ${RUN_LABEL}  ($(date '+%H:%M:%S'))"
-      setsid bash "${SCRIPT_DIR}/run_exp3_b.sh" "${PLATFORM}" "${SCENARIO}" "${CONDITION}" "${i}" &
+      RUN_DIR="${REPO_DIR}/results/exp3/${PLATFORM}/${SCENARIO}/${CONDITION}/run$(printf '%02d' "${i}")"
+      mkdir -p "${RUN_DIR}"
+      setsid bash "${SCRIPT_DIR}/run_exp3_b.sh" "${PLATFORM}" "${SCENARIO}" "${CONDITION}" "${i}" > "${RUN_DIR}/run.log" 2>&1 &
       CURRENT_RUN_PID=$!
       if wait "${CURRENT_RUN_PID}"; then
         CURRENT_RUN_PID=""
       else
         RUN_STATUS=$?
         if [[ "${RUN_STATUS}" == "130" || "${RUN_STATUS}" == "143" ]]; then
+          stop_current_run
           exit "${RUN_STATUS}"
         fi
         CURRENT_RUN_PID=""
         echo "    [WARN] run ${RUN_LABEL} failed; continuing"
+        echo "    [WARN] see ${RUN_DIR}/run.log"
         FAILED+=("${PLATFORM}/${SCENARIO}/${CONDITION}/run$(printf '%02d' "${i}")")
       fi
     done

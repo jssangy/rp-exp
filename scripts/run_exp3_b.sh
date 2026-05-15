@@ -140,6 +140,7 @@ handle_signal() {
   normalize_tty
   echo ""
   echo "[interrupt] run stop requested"
+  cleanup_on_exit
   exit 130
 }
 
