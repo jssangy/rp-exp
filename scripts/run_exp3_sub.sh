@@ -21,8 +21,8 @@ CONDITIONS=(baseline rp_hz topic_hz)
 N_RUNS=5
 PLATFORM=""
 SYNC_HOST=""
-SYNC_PORT=56001
-SYNC_ACK_PORT=56002
+SYNC_PORT=55001
+SYNC_ACK_PORT=55002
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -46,9 +46,7 @@ if [[ -z "${SYNC_HOST}" ]]; then
 fi
 
 set +u
-if ! command -v ros2 &>/dev/null; then
-  source /opt/ros/humble/setup.bash
-fi
+source /opt/ros/humble/setup.bash
 source "${REPO_DIR}/install/setup.bash"
 set -u
 
@@ -177,9 +175,7 @@ for SCENARIO in "${SCENARIOS[@]}"; do
     for i in $(seq 1 "${N_RUNS}"); do
       RUN_LABEL="$(printf '%02d' "${i}")/${N_RUNS}"
       echo "    run ${RUN_LABEL}  ($(date '+%H:%M:%S'))"
-      RUN_DIR="${REPO_DIR}/results/exp3/${PLATFORM}/${SCENARIO}/${CONDITION}/run$(printf '%02d' "${i}")"
-      mkdir -p "${RUN_DIR}"
-      setsid bash "${SCRIPT_DIR}/run_exp3_b.sh" "${PLATFORM}" "${SCENARIO}" "${CONDITION}" "${i}" > "${RUN_DIR}/run.log" 2>&1 &
+      setsid bash "${SCRIPT_DIR}/run_exp3_b.sh" "${PLATFORM}" "${SCENARIO}" "${CONDITION}" "${i}" &
       CURRENT_RUN_PID=$!
       if wait "${CURRENT_RUN_PID}"; then
         CURRENT_RUN_PID=""
@@ -191,7 +187,6 @@ for SCENARIO in "${SCENARIOS[@]}"; do
         fi
         CURRENT_RUN_PID=""
         echo "    [WARN] run ${RUN_LABEL} failed; continuing"
-        echo "    [WARN] see ${RUN_DIR}/run.log"
         FAILED+=("${PLATFORM}/${SCENARIO}/${CONDITION}/run$(printf '%02d' "${i}")")
       fi
     done

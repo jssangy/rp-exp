@@ -13,9 +13,7 @@ normalize_tty() {
 normalize_tty
 
 set +u
-if ! command -v ros2 &>/dev/null; then
-  source /opt/ros/humble/setup.bash
-fi
+source /opt/ros/humble/setup.bash
 SCRIPT_DIR_TMP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_SETUP="$(dirname "${SCRIPT_DIR_TMP}")/install/setup.bash"
 [[ -f "${INSTALL_SETUP}" ]] && source "${INSTALL_SETUP}"
@@ -35,8 +33,8 @@ OUTDIR="${REPO_DIR}/results/exp3/${PLATFORM}/${SCENARIO}/${CONDITION}/run${RUN}"
 
 NIC=${NIC:-$(ip route show default | awk '/default/ {print $5; exit}')}
 SYNC_HOST=${SYNC_HOST:-""}
-SYNC_PORT=${SYNC_PORT:-56001}
-SYNC_ACK_PORT=${SYNC_ACK_PORT:-56002}
+SYNC_PORT=${SYNC_PORT:-55001}
+SYNC_ACK_PORT=${SYNC_ACK_PORT:-55002}
 RP_BIN=${RP_BIN:-$(command -v rp)}
 RP_SOCKET=${RP_SOCKET:-/tmp/ros2probe.sock}
 TOPIC=${STRESS_TOPIC:-/stress}

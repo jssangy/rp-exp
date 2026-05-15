@@ -5,7 +5,7 @@
 #   ./scripts/run_exp3_pub.sh --sync <Receiver-IP>
 #
 # B sends "START <scenario>" / "STOP" / "DONE" for each run.
-# B -> A: port 56001 / A -> B: port 56002
+# B -> A: port 55001 / A -> B: port 55002
 
 set -euo pipefail
 
@@ -19,8 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "${SCRIPT_DIR}")"
 
 SYNC_HOST=""
-SYNC_PORT=56001
-SYNC_ACK_PORT=56002
+SYNC_PORT=55001
+SYNC_ACK_PORT=55002
 
 while [[ $# -gt 0 ]]; do
   case $1 in
