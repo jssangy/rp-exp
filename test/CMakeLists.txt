@@ -54,6 +54,13 @@ ament_target_dependencies(s4_image_pub ${DEPS})
 add_executable(s4_image_sub src/s4_image_sub.cpp)
 ament_target_dependencies(s4_image_sub ${DEPS})
 
+# Experiment 3 — /stress (sensor_msgs/Image, fixed payload, variable rate)
+add_executable(stress_pub src/stress_pub.cpp)
+ament_target_dependencies(stress_pub ${DEPS})
+
+add_executable(stress_sub src/stress_sub.cpp)
+ament_target_dependencies(stress_sub ${DEPS})
+
 install(TARGETS
   s1_pub
   s1_sub
@@ -67,6 +74,8 @@ install(TARGETS
   s4a_sub
   s4_image_pub
   s4_image_sub
+  stress_pub
+  stress_sub
   DESTINATION lib/${PROJECT_NAME}
 )
 

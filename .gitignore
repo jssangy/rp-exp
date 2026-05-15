@@ -2,3 +2,7 @@ build/
 install/
 log/
 .claude/
+.agents/
+.codex/
+results/
+bags/
