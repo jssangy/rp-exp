@@ -128,9 +128,11 @@ cleanup_on_exit() {
 
   [[ -n "${OBSERVER_CPU_PID}" ]] && stop_pid_gracefully "${OBSERVER_CPU_PID}" TERM 2
   [[ -n "${NETDEV_PID}" ]] && stop_pid_gracefully "${NETDEV_PID}" TERM 2
+  [[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" INT 2
   [[ -n "${OBS_PID}" ]] && stop_pid_gracefully "${OBS_PID}" INT 5
   [[ -n "${RP_PID}" ]] && stop_rp_runtime
   [[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" TERM 3
+  normalize_tty
 }
 
 handle_signal() {
@@ -308,8 +310,10 @@ esac
 
 [[ -n "${OBSERVER_CPU_PID}" ]] && stop_pid_gracefully "${OBSERVER_CPU_PID}" TERM 3
 [[ -n "${NETDEV_PID}" ]] && stop_pid_gracefully "${NETDEV_PID}" TERM 3
+[[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" INT 2
 [[ -n "${SUB_PID}" ]] && stop_pid_gracefully "${SUB_PID}" TERM 5
 ros2 daemon stop 2>/dev/null || true
+normalize_tty
 
 echo "[run_exp3_b] run${RUN} done -> ${OUTDIR}"
 trap - EXIT

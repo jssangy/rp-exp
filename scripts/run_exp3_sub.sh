@@ -179,8 +179,10 @@ for SCENARIO in "${SCENARIOS[@]}"; do
       CURRENT_RUN_PID=$!
       if wait "${CURRENT_RUN_PID}"; then
         CURRENT_RUN_PID=""
+        normalize_tty
       else
         RUN_STATUS=$?
+        normalize_tty
         if [[ "${RUN_STATUS}" == "130" || "${RUN_STATUS}" == "143" ]]; then
           stop_current_run
           exit "${RUN_STATUS}"
