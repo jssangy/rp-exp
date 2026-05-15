@@ -46,6 +46,7 @@ export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-79}
 
 SUDO_KEEPALIVE_PID=""
 PUB_PID=""
+NC_PID=""
 CLEANED_UP=0
 
 start_sudo_keepalive() {
@@ -77,11 +78,22 @@ setup_env() {
 stop_current() {
   if [[ -n "${PUB_PID}" ]]; then
     echo "[pub] stopping (PID ${PUB_PID})  $(date '+%H:%M:%S')"
+    kill -SIGINT -- "-${PUB_PID}" 2>/dev/null || true
+    sleep 1
     kill -SIGTERM -- "-${PUB_PID}" 2>/dev/null || true
     sleep 1
     kill -SIGKILL -- "-${PUB_PID}" 2>/dev/null || true
     wait "${PUB_PID}" 2>/dev/null || true
     PUB_PID=""
+    normalize_tty
+  fi
+}
+
+stop_listener() {
+  if [[ -n "${NC_PID}" ]]; then
+    kill "${NC_PID}" 2>/dev/null || true
+    wait "${NC_PID}" 2>/dev/null || true
+    NC_PID=""
   fi
 }
 
@@ -89,8 +101,10 @@ cleanup() {
   [[ "${CLEANED_UP}" == "1" ]] && return
   CLEANED_UP=1
   normalize_tty
+  stop_listener
   stop_current
   stop_sudo_keepalive
+  normalize_tty
 }
 
 handle_signal() {
@@ -121,8 +135,15 @@ echo "Waiting for commands from Receiver. Start run_exp3_sub.sh --sync <Publishe
 echo ""
 
 while true; do
-  CMD=$(nc -l -p "${SYNC_PORT}" 2>/dev/null || true)
+  TMP_CMD=$(mktemp /tmp/rp_exp3_cmd.XXXXXX)
+  nc -l -p "${SYNC_PORT}" > "${TMP_CMD}" 2>/dev/null &
+  NC_PID=$!
+  wait "${NC_PID}" 2>/dev/null || true
+  NC_PID=""
+  CMD=$(cat "${TMP_CMD}" 2>/dev/null || true)
+  rm -f "${TMP_CMD}"
   CMD="${CMD%%$'\r'}"
+  normalize_tty
 
   case "${CMD}" in
     START\ *)
@@ -130,14 +151,19 @@ while true; do
       stop_current
       echo ""
       echo "  [$(date '+%H:%M:%S')] starting ${SCENARIO} publisher"
-      setsid bash "${SCRIPT_DIR}/pub_exp3_a.sh" "${SCENARIO}" &
+      PUB_LOG="${REPO_DIR}/log/exp3_pub_${SCENARIO}.log"
+      mkdir -p "$(dirname "${PUB_LOG}")"
+      setsid bash "${SCRIPT_DIR}/pub_exp3_a.sh" "${SCENARIO}" > "${PUB_LOG}" 2>&1 &
       PUB_PID=$!
+      echo "  [pub] log: ${PUB_LOG}"
       sleep 1
       echo "READY" | nc -w5 "${SYNC_HOST}" "${SYNC_ACK_PORT}" 2>/dev/null || true
+      normalize_tty
       ;;
     STOP)
       echo "  [$(date '+%H:%M:%S')] publisher stop requested"
       stop_current
+      normalize_tty
       ;;
     DONE)
       echo ""

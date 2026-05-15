@@ -84,12 +84,12 @@ bandwidth = 65,536 bytes x rate x 8
 | B. rp_hz | original subscriber + `rp topic hz /stress` | passive observer 조건의 overhead 측정 |
 | C. topic_hz | original subscriber + `ros2 topic hz /stress` | DDS subscriber 기반 observer 조건의 overhead 측정 |
 
-**반복 횟수**: platform x scenario x condition당 5회
+**반복 횟수**: platform x scenario x condition당 10회
 
 전체 run 수:
 
 ```text
-3 platforms x 3 scenarios x 3 conditions x 5 repetitions = 135 runs
+3 platforms x 3 scenarios x 3 conditions x 10 repetitions = 270 runs
 ```
 
 초기 pilot은 platform x scenario x condition당 3회로 줄여 실행할 수 있다.
@@ -184,17 +184,17 @@ results/exp3/
 ├── pc/
 │   ├── ST100/
 │   │   ├── baseline/
-│   │   │   └── run01~05/
+│   │   │   └── run01~10/
 │   │   │       ├── sub.log
 │   │   │       ├── netdev.log
 │   │   │       ├── observer_cpu.log
 │   │   │       └── platform.log
 │   │   ├── rp_hz/
-│   │   │   └── run01~05/
+│   │   │   └── run01~10/
 │   │   │       ├── obs.log
 │   │   │       └── ...
 │   │   └── topic_hz/
-│   │       └── run01~05/
+│   │       └── run01~10/
 │   ├── ST500/
 │   └── ST1000/
 ├── rpi/
