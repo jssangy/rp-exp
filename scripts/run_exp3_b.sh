@@ -218,8 +218,9 @@ NETDEV_PID=$!
 
 (
   set +e
-  prev_total=0
+  declare -A prev_ticks
   prev_ts=$(date +%s%3N)
+  echo "# timestamp_ms cpu_pct alive_pid_count pid_list"
   while true; do
     pids=()
     if [[ -n "${RP_PID}" ]]; then
@@ -229,27 +230,40 @@ NETDEV_PID=$!
       while read -r p; do [[ -n "${p}" ]] && pids+=("${p}"); done < <(pgrep -g "${OBS_PID}" 2>/dev/null || true)
     fi
 
-    total=0
+    delta_ticks=0
     alive=0
+    current_seen=""
     for p in "${pids[@]}"; do
       if [[ -r "/proc/${p}/stat" ]]; then
         vals=$(awk '{print $14, $15}' "/proc/${p}/stat" 2>/dev/null || true)
         if [[ -n "${vals}" ]]; then
           u=$(echo "${vals}" | awk '{print $1}')
           s=$(echo "${vals}" | awk '{print $2}')
-          total=$(( total + u + s ))
+          ticks=$(( u + s ))
+          if [[ -n "${prev_ticks[$p]+set}" ]]; then
+            d=$(( ticks - prev_ticks[$p] ))
+            if [[ ${d} -gt 0 ]]; then
+              delta_ticks=$(( delta_ticks + d ))
+            fi
+          fi
+          prev_ticks[$p]=${ticks}
           alive=$(( alive + 1 ))
+          current_seen="${current_seen} ${p}"
         fi
+      fi
+    done
+
+    for old_pid in "${!prev_ticks[@]}"; do
+      if [[ " ${current_seen} " != *" ${old_pid} "* ]]; then
+        unset "prev_ticks[${old_pid}]"
       fi
     done
 
     now=$(date +%s%3N)
     dt_ms=$(( now - prev_ts ))
-    delta=$(( total - prev_total ))
     if [[ ${dt_ms} -le 0 ]]; then dt_ms=1; fi
-    cpu_pct=$(awk "BEGIN {printf \"%.2f\", (${delta}/${CLK_TCK}) / (${dt_ms}/1000.0) * 100.0}")
+    cpu_pct=$(awk "BEGIN {printf \"%.2f\", (${delta_ticks}/${CLK_TCK}) / (${dt_ms}/1000.0) * 100.0}")
     echo "${now} ${cpu_pct} ${alive} ${pids[*]}"
-    prev_total=${total}
     prev_ts=${now}
     sleep 1
   done
