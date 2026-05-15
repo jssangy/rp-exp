@@ -220,17 +220,29 @@ NETDEV_PID=$!
   set +e
   declare -A prev_ticks
   prev_ts=$(date +%s%3N)
-  echo "# timestamp_ms cpu_pct alive_pid_count pid_list"
+  echo "# timestamp_ms cpu_pct rss_kb alive_pid_count pid_list"
   while true; do
     pids=()
+    declare -A seen_pids=()
     if [[ -n "${RP_PID}" ]]; then
-      while read -r p; do [[ -n "${p}" ]] && pids+=("${p}"); done < <(pgrep -g "${RP_PID}" 2>/dev/null || true)
+      while read -r p; do
+        if [[ -n "${p}" && -z "${seen_pids[$p]+set}" ]]; then
+          seen_pids[$p]=1
+          pids+=("${p}")
+        fi
+      done < <(pgrep -g "${RP_PID}" 2>/dev/null || true)
     fi
     if [[ -n "${OBS_PID}" ]]; then
-      while read -r p; do [[ -n "${p}" ]] && pids+=("${p}"); done < <(pgrep -g "${OBS_PID}" 2>/dev/null || true)
+      while read -r p; do
+        if [[ -n "${p}" && -z "${seen_pids[$p]+set}" ]]; then
+          seen_pids[$p]=1
+          pids+=("${p}")
+        fi
+      done < <(pgrep -g "${OBS_PID}" 2>/dev/null || true)
     fi
 
     delta_ticks=0
+    rss_kb=0
     alive=0
     current_seen=""
     for p in "${pids[@]}"; do
@@ -251,6 +263,12 @@ NETDEV_PID=$!
           current_seen="${current_seen} ${p}"
         fi
       fi
+      if [[ -r "/proc/${p}/status" ]]; then
+        rss=$(awk '/^VmRSS:/ {print $2; exit}' "/proc/${p}/status" 2>/dev/null || true)
+        if [[ -n "${rss}" ]]; then
+          rss_kb=$(( rss_kb + rss ))
+        fi
+      fi
     done
 
     for old_pid in "${!prev_ticks[@]}"; do
@@ -263,7 +281,7 @@ NETDEV_PID=$!
     dt_ms=$(( now - prev_ts ))
     if [[ ${dt_ms} -le 0 ]]; then dt_ms=1; fi
     cpu_pct=$(awk "BEGIN {printf \"%.2f\", (${delta_ticks}/${CLK_TCK}) / (${dt_ms}/1000.0) * 100.0}")
-    echo "${now} ${cpu_pct} ${alive} ${pids[*]}"
+    echo "${now} ${cpu_pct} ${rss_kb} ${alive} ${pids[*]}"
     prev_ts=${now}
     sleep 1
   done

@@ -4,12 +4,12 @@
 
 **핵심 주장**
 
-> `ros2 topic hz`는 DDS DataReader를 추가해 원본 subscriber와 같은 data stream을 한 번 더 수신하고, ROS 2 subscription path를 거치므로 고주기 workload에서 observer process CPU 사용량이 커질 수 있다.
-> 반면 `rp topic hz`는 DDS subscriber를 생성하지 않고 passive packet capture 기반으로 동작하므로, RX traffic을 baseline 근처로 유지하면서 더 낮은 observer CPU overhead를 보일 수 있다.
+> `ros2 topic hz`는 DDS DataReader를 추가해 원본 subscriber와 같은 data stream을 한 번 더 수신하고, ROS 2 subscription path를 거치므로 고주기 workload에서 observer process CPU/메모리 사용량이 커질 수 있다.
+> 반면 `rp topic hz`는 DDS subscriber를 생성하지 않고 passive packet capture 기반으로 동작하므로, RX traffic을 baseline 근처로 유지하면서 더 낮은 observer resource overhead를 보일 수 있다.
 
 **검증 목표**
 
-- 고주기 message stream에서 `rp_hz`와 `topic_hz` 조건의 observer process CPU 사용량을 비교한다.
+- 고주기 message stream에서 `rp_hz`와 `topic_hz` 조건의 observer process CPU 및 메모리 사용량을 비교한다.
 - PC, Raspberry Pi, Jetson 환경에서 platform별 resource overhead와 failure point를 비교한다.
 - subscriber drop rate는 resource 측정 중 workload가 정상 유지되었는지 확인하는 유효성 지표로만 사용한다.
 
@@ -19,7 +19,7 @@
 |---|---|
 | H3a | `ros2 topic hz`는 baseline 대비 RX traffic을 증가시킨다 |
 | H3b | `rp topic hz`의 baseline 대비 RX traffic 증가는 0에 가깝다 |
-| H3c | 고주기 조건에서 `rp topic hz`는 `ros2 topic hz`보다 observer process CPU 사용량이 낮다 |
+| H3c | 고주기 조건에서 `rp topic hz`는 `ros2 topic hz`보다 observer process CPU 및 메모리 사용량이 낮다 |
 
 ---
 
@@ -103,6 +103,7 @@ bandwidth = 65,536 bytes x rate x 8
 | RX bytes/s | `/proc/net/dev` 1초 간격 샘플링 | Receiver NIC |
 | 원본 subscriber drop rate | subscriber 수신 count vs expected(rate x 60s) | Receiver |
 | observer process CPU % | observer PID 기준 process CPU 샘플링 | Receiver |
+| observer process RSS memory | observer PID 기준 VmRSS 합산 | Receiver |
 | platform health | temperature/throttling 상태 | Receiver |
 
 주요 비교 지표:
@@ -110,9 +111,10 @@ bandwidth = 65,536 bytes x rate x 8
 ```text
 ΔRX = RX(condition) - RX(baseline)
 observer CPU = observer_cpu(condition)
+observer memory = observer_rss(condition)
 ```
 
-이 실험은 bag 파일을 생성하지 않는다. 저장장치 I/O를 배제하고 observer 경로가 RX와 observer CPU에 주는 영향을 비교한다.
+이 실험은 bag 파일을 생성하지 않는다. 저장장치 I/O를 배제하고 observer 경로가 RX와 observer CPU/메모리에 주는 영향을 비교한다.
 
 ---
 
@@ -162,7 +164,7 @@ Jetson은 별도로 power mode와 clock 상태를 기록한다.
 8. 10s warm-up
 9. 60s measurement 시작
    - netdev sampler
-   - observer process CPU sampler
+   - observer process CPU/memory sampler
    - subscriber count
 10. measurement 종료
 11. subscriber 종료
@@ -205,7 +207,7 @@ results/exp3/
 |---|---|
 | sub.log | original subscriber 수신 count, FINAL drop rate |
 | netdev.log | 1초 간격 NIC rx_bytes |
-| observer_cpu.log | 1초 간격 observer process CPU% |
+| observer_cpu.log | 1초 간격 observer process CPU% 및 RSS memory |
 | obs.log | observer stdout/stderr |
 | platform.log | CPU governor, temperature, throttling, storage 정보 |
 
@@ -228,15 +230,15 @@ RX Mbps = (rx_bytes[end] - rx_bytes[start]) x 8 / duration / 1e6
 | rp_hz | baseline 근처 |
 | topic_hz | baseline보다 증가 |
 
-### 7.2 Observer CPU Overhead
+### 7.2 Observer Resource Overhead
 
-observer process CPU 사용량을 조건별로 비교한다. baseline은 observer process가 없으므로 observer CPU 비교에서는 제외하고, RX/drop 기준값으로만 사용한다.
+observer process CPU 및 메모리 사용량을 조건별로 비교한다. baseline은 observer process가 없으므로 observer resource 비교에서는 제외하고, RX/drop 기준값으로만 사용한다.
 
 | 비교 | 보고 지표 |
 |---|---|
-| rp_hz | observer process CPU 평균/최대 |
-| topic_hz | observer process CPU 평균/최대 |
-| topic_hz vs rp_hz | observer process CPU 차이 |
+| rp_hz | observer process CPU 평균/최대, RSS 평균/최대 |
+| topic_hz | observer process CPU 평균/최대, RSS 평균/최대 |
+| topic_hz vs rp_hz | observer process CPU/RSS 차이 |
 
 platform별 core 수가 다르므로 process CPU는 raw value와 normalized value를 함께 보고한다.
 
@@ -274,7 +276,7 @@ observer 실패 여부
 | baseline | original subscriber FINAL line 존재, observer process 없음 |
 | rp_hz | `rp run` socket ready, `rp topic hz` 정상 시작 및 종료 |
 | topic_hz | `ros2 topic hz` 정상 시작 및 종료, run 전후 `ros2 daemon stop` 수행 |
-| sampler | netdev/observer CPU sampler가 60초 측정 창을 포함 |
+| sampler | netdev/observer CPU/memory sampler가 60초 측정 창을 포함 |
 | subscriber | expected count와 received count 기록 |
 | platform | CPU governor/power mode/thermal 상태 기록 |
 

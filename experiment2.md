@@ -64,8 +64,6 @@ Discovery Storm 논문의 계층 모델을 따라 다음과 같이 정의한다.
 | G1 | 1 pub process | 1 sub process | 2 | 2 | 최소 graph sanity check |
 | G5 | 5 pub processes | 5 sub processes | 10 | 10 | small graph |
 | G10 | 10 pub processes | 10 sub processes | 20 | 20 | medium graph |
-| G20 | 20 pub processes | 20 sub processes | 40 | 40 | large graph |
-| G50 | 50 pub processes | 50 sub processes | 100 | 100 | stress graph |
 
 토픽 이름은 pub-sub pair를 구분하기 위해 index만 붙인다. 토픽명 자체는 독립 변수가 아니다.
 
@@ -73,13 +71,11 @@ Discovery Storm 논문의 계층 모델을 따라 다음과 같이 정의한다.
 G1:  /exp2/topic_001
 G5:  /exp2/topic_001 ... /exp2/topic_005
 G10: /exp2/topic_001 ... /exp2/topic_010
-G20: /exp2/topic_001 ... /exp2/topic_020
-G50: /exp2/topic_001 ... /exp2/topic_050
 ```
 
 Laptop B에는 scale별 subscriber process, 조건별 관찰 도구, packet capture를 실행한다. subscriber process는 baseline/rp_run/ros2_daemon 조건 모두에 동일하게 포함되므로, observer overhead는 각 scale 내부에서 condition과 baseline의 차이로 계산한다.
 
-workload startup 방식은 모든 observer 조건에서 동일해야 한다. 기본값은 같은 scale의 publisher/subscriber process들을 가능한 한 동시 또는 연속적으로 실행하는 synchronized startup이다. 만약 G50에서 packet drop 또는 process startup 실패가 반복되면, staggered startup은 discovery storm 완화 조건으로 분리하거나, 모든 조건에 동일한 간격으로 적용하고 간격을 결과 metadata에 기록한다.
+workload startup 방식은 모든 observer 조건에서 동일해야 한다. 기본값은 같은 scale의 publisher/subscriber process들을 가능한 한 동시 또는 연속적으로 실행하는 synchronized startup이다. 만약 G10에서도 packet drop 또는 process startup 실패가 반복되면, staggered startup은 discovery storm 완화 조건으로 분리하거나, 모든 조건에 동일한 간격으로 적용하고 간격을 결과 metadata에 기록한다.
 
 이 실험은 Discovery Storm 논문의 H/P/E scaling 관점을 채택하지만, 해당 논문의 IEEE 802.11 airtime saturation 모델을 직접 검증하지 않는다. 본 실험의 측정 대상은 제어된 GbE 링크에서 observer가 추가로 유발하는 DDS discovery traffic이다.
 
@@ -97,7 +93,7 @@ workload startup 방식은 모든 observer 조건에서 동일해야 한다. 기
 전체 run 수:
 
 ```text
-5 graph scales x 3 observer conditions x 10 repetitions = 150 runs
+3 graph scales x 3 observer conditions x 10 repetitions = 90 runs
 ```
 
 ---
@@ -166,7 +162,7 @@ sudo cpupower frequency-set -g performance
 
 [Laptop A]
 7. scale별 publisher process 실행
-   - G1/G5/G10/G20/G50 중 하나
+   - G1/G5/G10 중 하나
 
 [Laptop B]
 8. scale별 subscriber process 실행
@@ -210,9 +206,7 @@ results/exp2/
 │   └── ros2_daemon/
 │       └── run01~10/
 ├── G5/
-├── G10/
-├── G20/
-└── G50/
+└── G10/
 ```
 
 | 파일 | 내용 |
@@ -253,7 +247,7 @@ SPDP participant announcement에서 GUID prefix를 추출해 unique count를 계
 
 ### 7.3 Endpoint count
 
-SEDP Publications와 SEDP Subscriptions에서 endpoint entity를 분리해 DataWriter/DataReader 수를 계산한다. G scale별 expected endpoint count는 baseline 기준으로 G1=2, G5=10, G10=20, G20=40, G50=100이다. `ros2_daemon` 조건에서 endpoint count가 추가로 증가하면 daemon이 생성한 DDS endpoint를 별도로 보고한다.
+SEDP Publications와 SEDP Subscriptions에서 endpoint entity를 분리해 DataWriter/DataReader 수를 계산한다. G scale별 expected endpoint count는 baseline 기준으로 G1=2, G5=10, G10=20이다. `ros2_daemon` 조건에서 endpoint count가 추가로 증가하면 daemon이 생성한 DDS endpoint를 별도로 보고한다.
 
 보고 지표:
 
@@ -262,7 +256,7 @@ SEDP Publications와 SEDP Subscriptions에서 endpoint entity를 분리해 DataW
 | `ros2_daemon` vs baseline | Δparticipant count, ΔSPDP/SEDP packets, Δdiscovery bytes |
 | `rp_run` vs baseline | Δparticipant count, ΔSPDP/SEDP packets, Δdiscovery bytes |
 | `ros2_daemon` vs `rp_run` | discovery overhead 차이 |
-| scale trend | G1/G5/G10/G20/G50에 따른 observer overhead 증가 양상 |
+| scale trend | G1/G5/G10에 따른 observer overhead 증가 양상 |
 
 ### 7.4 기대 결과
 
