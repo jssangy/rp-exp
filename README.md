@@ -55,6 +55,7 @@ ros2 daemon stop
 scenarios: ST100, ST500, ST1000
 conditions: baseline, rp_hz, topic_hz
 runs: 10
+ROS_DOMAIN_ID: 77
 results: results/exp3/<platform>/<scenario>/<condition>/runXX/
 ```
 

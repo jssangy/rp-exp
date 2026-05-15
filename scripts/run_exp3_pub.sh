@@ -42,7 +42,7 @@ source "${REPO_DIR}/install/setup.bash"
 set -u
 
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
-export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-79}
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 SUDO_KEEPALIVE_PID=""
 PUB_PID=""

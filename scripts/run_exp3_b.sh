@@ -20,7 +20,7 @@ INSTALL_SETUP="$(dirname "${SCRIPT_DIR_TMP}")/install/setup.bash"
 set -u
 
 export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
-export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-79}
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-77}
 
 PLATFORM=${1:?usage: $0 <platform> <scenario> <condition> <run>}
 SCENARIO=${2:?}
