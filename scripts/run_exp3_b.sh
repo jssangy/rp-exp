@@ -211,8 +211,13 @@ sleep "${WARMUP_SEC}"
 
 (
   while true; do
-    grep " ${NIC}:" /proc/net/dev \
-      | awk -v t="$(date +%s%3N)" '{print t, $2}'
+    awk -v nic="${NIC}" -v t="$(date +%s%3N)" '
+      {
+        iface = $1
+        sub(":", "", iface)
+        if (iface == nic) print t, $2
+      }
+    ' /proc/net/dev
     sleep 1
   done
 ) > "${OUTDIR}/netdev.log" &
