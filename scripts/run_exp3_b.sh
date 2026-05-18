@@ -209,15 +209,15 @@ SUB_PID=$!
 
 sleep "${WARMUP_SEC}"
 
+RX_BYTES_PATH="/sys/class/net/${NIC}/statistics/rx_bytes"
+if [[ ! -r "${RX_BYTES_PATH}" ]]; then
+  echo "[ERROR] netdev rx counter not readable for NIC=${NIC}: ${RX_BYTES_PATH}" >&2
+  exit 1
+fi
+
 (
   while true; do
-    awk -v nic="${NIC}" -v t="$(date +%s%3N)" '
-      {
-        iface = $1
-        sub(":", "", iface)
-        if (iface == nic) print t, $2
-      }
-    ' /proc/net/dev
+    echo "$(date +%s%3N) $(cat "${RX_BYTES_PATH}")"
     sleep 1
   done
 ) > "${OUTDIR}/netdev.log" &
